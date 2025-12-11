@@ -1,0 +1,3318 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><?= clientName ?> Dashboard</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <?!= include('styles'); ?>
+  
+  <script>
+    // Client configuration passed from server
+    const clientId = '<?= clientId ?>';
+    const clientName = '<?= clientName ?>';
+    // Version for cache busting
+    const dashboardVersion = '2.4';
+  </script>
+</head>
+<body class="bg-gray-50">
+  <!-- Header -->
+  <header class="shadow-lg" style="background-color: #75221B;">
+    <div class="container mx-auto px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div>
+            <h1 class="text-2xl font-bold cursor-pointer text-white hover:text-yellow-300 transition-colors" onclick="showView('dashboard')"><?= clientName ?></h1>
+            <p class="text-yellow-100" id="pageSubtitle">Inventory Management Dashboard</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-8">
+          <div class="text-right">
+            <p class="text-yellow-300 text-xs uppercase tracking-wider">Report Updated</p>
+            <p class="text-white text-sm font-medium" id="headerLastUpdated">Loading...</p>
+          </div>
+          <img src="data:image/png;base64,<?!= getVelocityLogoBase64() ?>" alt="Velocity Sellers" class="h-12" style="height: 48px; width: auto;">
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container mx-auto px-6 py-8">
+    <!-- Loading State -->
+    <div id="loadingState" class="flex items-center justify-center min-h-screen">
+      <div class="text-center max-w-md w-full px-4">
+        <div class="mb-8">
+          <div class="animate-pulse">
+            <i class="fas fa-chart-line text-6xl text-red-600"></i>
+          </div>
+        </div>
+        
+        <!-- Progress Bar Container -->
+        <div class="mb-4">
+          <div class="bg-gray-200 rounded-full h-4 overflow-hidden">
+            <div id="progressBar" class="bg-red-600 h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+          </div>
+        </div>
+        
+        <!-- Progress Text -->
+        <p id="progressText" class="text-gray-600 font-medium mb-2">Initializing...</p>
+        <p id="progressPercent" class="text-sm text-gray-500">0%</p>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="hidden flex items-center justify-center min-h-screen">
+      <div class="text-center max-w-md">
+        <i class="fas fa-exclamation-circle text-red-500 text-4xl mb-4"></i>
+        <h2 class="text-xl font-semibold text-gray-900 mb-2">Unable to Load Dashboard</h2>
+        <p id="errorMessage" class="text-gray-600 mb-4"></p>
+        <button onclick="refreshData()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+          Try Again
+        </button>
+      </div>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="dashboardView" class="view hidden">
+      <!-- Metrics Summary -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6 metric-card cursor-pointer hover:shadow-lg transition-shadow" onclick="showView('fbmToFba')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-600 text-sm">FBM to FBA Opportunities</p>
+              <p class="text-2xl font-bold text-gray-900" id="fbmCount">0</p>
+            </div>
+            <i class="fas fa-exchange-alt text-blue-500 text-2xl"></i>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6 metric-card cursor-pointer hover:shadow-lg transition-shadow" onclick="showView('excessInventory')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-600 text-sm">Excess Inventory SKUs</p>
+              <p class="text-2xl font-bold text-gray-900" id="excessCount">0</p>
+            </div>
+            <i class="fas fa-box-open text-yellow-500 text-2xl"></i>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6 metric-card cursor-pointer hover:shadow-lg transition-shadow" onclick="showView('revenueRisk')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-600 text-sm">Revenue at Risk</p>
+              <p class="text-2xl font-bold text-gray-900" id="revenueRisk">$0</p>
+            </div>
+            <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6 metric-card cursor-pointer hover:shadow-lg transition-shadow" onclick="showView('lilfMonitor')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-600 text-sm">LILF Risk Groups</p>
+              <p class="text-2xl font-bold text-gray-900" id="lilfCount">0</p>
+            </div>
+            <i class="fas fa-clock text-purple-500 text-2xl"></i>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6 metric-card cursor-pointer hover:shadow-lg transition-shadow" onclick="showView('skuTrendsAnalysis')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-600 text-sm">SKU Sales Trends</p>
+              <p class="text-2xl font-bold text-gray-900" id="trendsCount">0</p>
+            </div>
+            <i class="fas fa-chart-line text-green-500 text-2xl"></i>
+          </div>
+        </div>
+
+        <!-- Vendor Central Card - Only visible if client has vendor data -->
+        <div id="vendorCentralCard" class="bg-white rounded-lg shadow p-6 metric-card cursor-pointer hover:shadow-lg transition-shadow hidden" onclick="showView('vendorCentral')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-600 text-sm">Vendor Central ASINs</p>
+              <p class="text-2xl font-bold text-gray-900" id="vendorCount">0</p>
+              <p class="text-xs text-red-600 font-semibold mt-1" id="vendorAlertCount"></p>
+            </div>
+            <i class="fas fa-handshake text-indigo-500 text-2xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Holiday Planning Card - Only visible Aug-Oct -->
+      <div id="holidayPlanningCard" class="hidden">
+        <div class="mt-6">
+          <div class="bg-gradient-to-r from-red-600 to-green-600 rounded-lg shadow-lg p-6 metric-card cursor-pointer hover:shadow-xl transition-shadow" onclick="showView('holidayPlanning')">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-white text-sm font-medium">
+                  <i class="fas fa-snowflake mr-1"></i>Holiday Planning 2025
+                </p>
+                <p class="text-3xl font-bold text-white mt-1" id="holidayStatus">Configure →</p>
+              </div>
+              <div class="text-white">
+                <i class="fas fa-calendar-alt text-4xl opacity-75"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Description -->
+      <div class="mt-8 bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Welcome to Your Inventory Dashboard</h2>
+        <p class="text-gray-600">
+          Click on any metric card above to view detailed reports and actionable insights for your Amazon inventory. 
+          Each report is designed to help you optimize your FBA strategy and maximize profitability.
+        </p>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-exchange-alt text-blue-500 mt-1"></i>
+            <div>
+              <p class="font-medium text-gray-900">FBM to FBA</p>
+              <p class="text-gray-600">Identify high-performing FBM products to convert</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-2">
+            <i class="fas fa-box-open text-yellow-500 mt-1"></i>
+            <div>
+              <p class="font-medium text-gray-900">Excess Inventory</p>
+              <p class="text-gray-600">Track aged inventory requiring action</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-2">
+            <i class="fas fa-exclamation-triangle text-red-500 mt-1"></i>
+            <div>
+              <p class="font-medium text-gray-900">Revenue at Risk</p>
+              <p class="text-gray-600">Monitor out-of-stock revenue impact</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-2">
+            <i class="fas fa-clock text-purple-500 mt-1"></i>
+            <div>
+              <p class="font-medium text-gray-900">LILF Monitor</p>
+              <p class="text-gray-600">Avoid low inventory level fees</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-2">
+            <i class="fas fa-chart-line text-green-500 mt-1"></i>
+            <div>
+              <p class="font-medium text-gray-900">SKU Trends</p>
+              <p class="text-gray-600">Comprehensive inventory health analysis</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-2 holiday-planning-desc hidden">
+            <i class="fas fa-snowflake text-red-600 mt-1"></i>
+            <div>
+              <p class="font-medium text-gray-900">Holiday Planning</p>
+              <p class="text-gray-600">Forecast Q4 inventory needs based on 2024 data</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Last Updated -->
+      <div class="mt-8 text-center text-sm text-gray-600">
+        <p id="lastUpdated">Last updated: Loading...</p>
+      </div>
+    </div>
+
+    <!-- Full Report Views -->
+    <!-- FBM to FBA Full View -->
+    <div id="fbmToFbaView" class="view hidden">
+      <div class="mb-4">
+        <button onclick="showView('dashboard')" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </button>
+      </div>
+      <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-gray-900">FBM to FBA Opportunities - Full Report</h2>
+            <div class="flex gap-2">
+              <button onclick="copyTable('fbmFullTable', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                <i class="fas fa-copy"></i> Copy
+              </button>
+              <button onclick="downloadCSV('fbmToFba', 'FBM_to_FBA_Full_Report', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                <i class="fas fa-download"></i> Download CSV
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="fbmFullTable">
+              <thead>
+                <tr class="text-left text-gray-600 border-b">
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('fbmFullTable', 0, 'string')">SKU</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('fbmFullTable', 1, 'string')">Title</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('fbmFullTable', 2, 'number')">60-Day Units</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('fbmFullTable', 3, 'currency')">60-Day Revenue</th>
+                  <th class="pb-2 sortable" onclick="sortTable('fbmFullTable', 4, 'currency')">Avg Price</th>
+                </tr>
+              </thead>
+              <tbody id="fbmFullBody" class="divide-y divide-gray-100">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Excess Inventory Full View -->
+    <div id="excessInventoryView" class="view hidden">
+      <div class="mb-4">
+        <button onclick="showView('dashboard')" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </button>
+      </div>
+      <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-gray-900">Excess Inventory - Full Report</h2>
+            <div class="flex gap-2">
+              <button onclick="copyTable('excessFullTable', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                <i class="fas fa-copy"></i> Copy
+              </button>
+              <button onclick="downloadCSV('excessInventory', 'Excess_Inventory_Full_Report', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                <i class="fas fa-download"></i> Download CSV
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="excessFullTable">
+              <thead>
+                <tr class="text-left text-gray-600 border-b">
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('excessFullTable', 0, 'string')">SKU</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('excessFullTable', 1, 'string')">Title</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('excessFullTable', 2, 'number')">365+ Days</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('excessFullTable', 3, 'number')">271-365 Days</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('excessFullTable', 4, 'number')">181-270 Days</th>
+                  <th class="pb-2 text-center sortable" onclick="sortTable('excessFullTable', 5, 'number')">Total Aged Units</th>
+                </tr>
+              </thead>
+              <tbody id="excessFullBody" class="divide-y divide-gray-100">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Revenue Risk Full View -->
+    <div id="revenueRiskView" class="view hidden">
+      <div class="mb-4">
+        <button onclick="showView('dashboard')" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </button>
+      </div>
+      <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-gray-900">Revenue at Risk - Full Report</h2>
+            <div class="flex gap-2">
+              <button onclick="copyTable('riskFullTable', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                <i class="fas fa-copy"></i> Copy
+              </button>
+              <button onclick="downloadCSV('revenueRisk', 'Revenue_at_Risk_Full_Report', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                <i class="fas fa-download"></i> Download CSV
+              </button>
+            </div>
+          </div>
+          <!-- Report Explanation Notice -->
+          <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mt-4">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <i class="fas fa-info-circle text-amber-400"></i>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-amber-700">
+                  <strong>Report Scope:</strong> This report identifies SKUs with absolutely zero Amazon inventory and no inbound shipments 
+                  (working, shipped, or receiving) as of the last report update. Recent shipments created after the report date will not 
+                  be reflected here. These SKUs cannot fulfill customer orders until new inventory arrives at Amazon.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="riskFullTable">
+              <thead>
+                <tr class="text-left text-gray-600 border-b">
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('riskFullTable', 0, 'string')">SKU</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('riskFullTable', 1, 'string')">Title</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('riskFullTable', 2, 'currency')">90-Day Revenue</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('riskFullTable', 3, 'currency')">Lost Revenue/Day</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('riskFullTable', 4, 'number')">Inbound Units</th>
+                  <th class="pb-2 text-center sortable" onclick="sortTable('riskFullTable', 5, 'currency')">365-Day Revenue</th>
+                </tr>
+              </thead>
+              <tbody id="riskFullBody" class="divide-y divide-gray-100">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    
+    <!-- LILF Monitor Full View -->
+    <div id="lilfMonitorView" class="view hidden">
+      <div class="mb-4">
+        <button onclick="showView('dashboard')" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </button>
+      </div>
+      <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-xl font-semibold text-gray-900">Low Inventory Level Fee Monitor - Full Report</h2>
+        </div>
+        <div class="p-6">
+          <div id="lilfFullGroups" class="space-y-4">
+            <!-- LILF groups will be inserted here -->
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- SKU Trends Analysis View -->
+    <div id="skuTrendsAnalysisView" class="view hidden">
+      <div class="mb-4">
+        <button onclick="showView('dashboard')" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </button>
+      </div>
+      <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-semibold text-gray-900">SKU Sales Trends Analysis - Full Report</h2>
+              <p class="text-sm text-gray-600 mt-1" id="filterDescription">Showing all active FBA SKUs with sales in the last 365 days</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="downloadCSV('skuTrendsAnalysis', 'SKU_Trends_Analysis_Full', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                <i class="fas fa-download"></i> Download CSV
+              </button>
+            </div>
+          </div>
+          
+          <!-- Filters Section -->
+          <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <!-- Revenue Performance Filter -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Revenue Performance</label>
+                <select id="revenueFilter" onchange="applyFilters()" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
+                  <option value="all">All SKUs</option>
+                  <option value="tier-a">Tier A - Top 50% Revenue</option>
+                  <option value="tier-b">Tier B - Next 30% Revenue</option>
+                  <option value="tier-c">Tier C - Next 15% Revenue</option>
+                  <option value="tier-d">Tier D - Bottom 5% Revenue</option>
+                  <option value="top20">Top 20% (80% of Revenue)</option>
+                </select>
+              </div>
+              
+              <!-- Inventory Health Filter -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Inventory Health</label>
+                <select id="inventoryFilter" onchange="applyFilters()" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
+                  <option value="all">All Inventory Levels</option>
+                  <option value="critical">Critical Stock (<14 days)</option>
+                  <option value="low">Low Stock (<30 days)</option>
+                  <option value="healthy">Healthy Stock (30-180 days)</option>
+                  <option value="overstocked">Overstocked (>180 days)</option>
+                  <option value="out">Out of Stock</option>
+                </select>
+              </div>
+              
+              <!-- Days of Supply Filter -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Days of Supply</label>
+                <select id="trendFilter" onchange="applyFilters()" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
+                  <option value="all">All Levels</option>
+                  <option value="critical-dos">Critical (&lt; 14 days)</option>
+                  <option value="low-dos">Low (14-29 days)</option>
+                  <option value="healthy-dos">Healthy (30-89 days)</option>
+                  <option value="high-dos">High (90+ days)</option>
+                  <option value="infinite-dos">Infinite (No Sales)</option>
+                </select>
+              </div>
+              
+              <!-- Quick Actions -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Quick Filters</label>
+                <div class="flex gap-2">
+                  <button onclick="applyQuickFilter('restock')" class="flex-1 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>Needs Restock
+                  </button>
+                  <button onclick="applyQuickFilter('clear')" class="flex-1 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm">
+                    <i class="fas fa-times mr-1"></i>Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Stats Summary -->
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div class="bg-white p-3 rounded border border-gray-200">
+                <p class="text-gray-600">Showing</p>
+                <p class="text-xl font-bold text-gray-900" id="showingCount">0</p>
+              </div>
+              <div class="bg-white p-3 rounded border border-gray-200">
+                <p class="text-gray-600">Total Revenue</p>
+                <p class="text-xl font-bold text-green-600" id="totalRevenue">$0</p>
+              </div>
+              <div class="bg-white p-3 rounded border border-gray-200">
+                <p class="text-gray-600">Critical Stock</p>
+                <p class="text-xl font-bold text-red-600" id="criticalCount">0</p>
+              </div>
+              <div class="bg-white p-3 rounded border border-gray-200">
+                <p class="text-gray-600">Avg Days of Stock</p>
+                <p class="text-xl font-bold text-blue-600" id="avgDaysStock">0</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="skuTrendsAnalysisFullTable">
+              <thead>
+                <tr class="text-left text-gray-600 border-b">
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 0, 'string')">ASIN</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 1, 'string')">SKU</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 2, 'string')">Title</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 3, 'number')">FBA Inventory</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 4, 'number')">AWD Inventory</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 5, 'number')" title="Days of supply based on 30-day sales velocity. Includes both FBA and AWD inventory (if AWD inventory exists).">
+                    Days of Supply
+                    <span class="text-xs text-gray-400 ml-1" title="Days of supply based on 30-day sales velocity. Includes both FBA and AWD inventory (if AWD inventory exists).">ⓘ</span>
+                  </th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 6, 'number')">90-Day Units Sold</th>
+                  <th class="pb-2 pr-4 text-center" title="Sales trend over the last 90 days in 30-day increments">
+                    90 Day Trend
+                    <span class="text-xs text-gray-400 ml-1" title="Sales trend over the last 90 days in 30-day increments">ⓘ</span>
+                  </th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 8, 'currency')">90-Day Revenue</th>
+                  <th class="pb-2 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 9, 'number')">Change %</th>
+                </tr>
+              </thead>
+              <tbody id="skuTrendsAnalysisFullBody" class="divide-y divide-gray-100">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vendor Central View -->
+    <div id="vendorCentralView" class="view hidden">
+      <div class="mb-4">
+        <button onclick="showView('dashboard')" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </button>
+      </div>
+
+      <!-- Report Metadata -->
+      <div id="vendorMetadata" class="bg-gray-100 border border-gray-300 rounded-lg p-3 mb-4 hidden">
+        <div class="flex items-center justify-between text-sm">
+          <div class="flex items-center space-x-4">
+            <div>
+              <span class="text-gray-600 font-medium">Viewing Range:</span>
+              <span class="text-gray-900 font-semibold ml-1" id="vcViewingRange">N/A</span>
+            </div>
+            <div class="border-l border-gray-400 pl-4">
+              <span class="text-gray-600 font-medium">Report Updated:</span>
+              <span class="text-gray-900 font-semibold ml-1" id="vcReportUpdated">N/A</span>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500">
+            <i class="fas fa-info-circle mr-1"></i>Data from Amazon Vendor Central
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary KPI Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-gray-600 text-sm">Total Inventory Value</p>
+          <p class="text-2xl font-bold text-gray-900" id="vcTotalValue">$0</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-gray-600 text-sm">Unfilled Customer Orders</p>
+          <p class="text-2xl font-bold text-red-600" id="vcUnfilledOrders">0</p>
+          <p class="text-xs text-gray-500" id="vcUnfilledValue">$0 potential revenue</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-gray-600 text-sm">Aged 90+ Days Units</p>
+          <p class="text-2xl font-bold text-orange-600" id="vcAgedUnits">0</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-gray-600 text-sm">Avg Sell-Through Rate</p>
+          <p class="text-2xl font-bold text-green-600" id="vcAvgSellThrough">0%</p>
+        </div>
+      </div>
+
+      <!-- Status Explanations & Report Section -->
+      <div id="vendorReportSection" class="mb-6 space-y-4">
+        <!-- Overall Narrative Report -->
+        <div class="bg-blue-50 border-l-4 border-blue-500 rounded-lg shadow">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSection('overallReport')">
+              <h3 class="text-lg font-semibold text-blue-900">
+                <i class="fas fa-file-alt mr-2"></i>Executive Summary & Action Plan
+                <i id="overallReportToggleIcon" class="fas fa-chevron-down ml-2 text-sm"></i>
+              </h3>
+            </div>
+            <div id="overallReportContent">
+              <div id="overallReportText" class="text-sm text-gray-800 whitespace-pre-wrap font-mono bg-white p-4 rounded border border-blue-200 mb-4"></div>
+
+              <!-- Actionable Recommendations -->
+              <div id="recommendationsContainer" class="space-y-3"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Definitions Guide -->
+        <div class="bg-gray-50 border-l-4 border-gray-400 rounded-lg shadow">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSection('statusGuide')">
+              <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-question-circle mr-2"></i>What Do These Status Levels Mean?
+                <i id="statusGuideToggleIcon" class="fas fa-chevron-down ml-2 text-sm"></i>
+              </h3>
+            </div>
+            <div id="statusGuideContent" class="hidden">
+              <div id="statusDefinitions" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Priority Alerts Section -->
+      <div id="vendorAlertsSection" class="mb-6">
+        <!-- Critical Alerts -->
+        <div id="criticalAlertsCard" class="bg-red-50 border-l-4 border-red-500 rounded-lg shadow mb-4 hidden">
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleAlertCard('critical')">
+              <h3 class="text-lg font-semibold text-red-900">
+                <i class="fas fa-exclamation-circle mr-2"></i>Critical: Unfilled Customer Orders
+                <i id="criticalToggleIcon" class="fas fa-chevron-down ml-2 text-sm"></i>
+              </h3>
+              <span class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold" id="criticalBadge">0</span>
+            </div>
+            <div id="criticalAlertsContent">
+              <p class="text-sm text-red-800 mb-3">These ASINs have customer orders waiting to be fulfilled. Lost sales opportunity happening NOW!</p>
+              <div id="criticalAlertsList" class="space-y-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Urgent Alerts -->
+        <div id="urgentAlertsCard" class="bg-orange-50 border-l-4 border-orange-500 rounded-lg shadow mb-4 hidden">
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleAlertCard('urgent')">
+              <h3 class="text-lg font-semibold text-orange-900">
+                <i class="fas fa-clock mr-2"></i>Urgent: Low Stock Warnings
+                <i id="urgentToggleIcon" class="fas fa-chevron-down ml-2 text-sm"></i>
+              </h3>
+              <span class="bg-orange-600 text-white px-3 py-1 rounded-full text-sm font-bold" id="urgentBadge">0</span>
+            </div>
+            <div id="urgentAlertsContent">
+              <p class="text-sm text-orange-800 mb-3">These ASINs have less than 30 days of supply remaining based on recent velocity.</p>
+              <div id="urgentAlertsList" class="space-y-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Warning Alerts -->
+        <div id="warningAlertsCard" class="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg shadow mb-4 hidden">
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleAlertCard('warning')">
+              <h3 class="text-lg font-semibold text-yellow-900">
+                <i class="fas fa-exclamation-triangle mr-2"></i>Warning: Aged Inventory & Slow Movers
+                <i id="warningToggleIcon" class="fas fa-chevron-down ml-2 text-sm"></i>
+              </h3>
+              <span class="bg-yellow-600 text-white px-3 py-1 rounded-full text-sm font-bold" id="warningBadge">0</span>
+            </div>
+            <div id="warningAlertsContent">
+              <p class="text-sm text-yellow-800 mb-3">These ASINs have aged inventory (90+ days) or low sell-through rates.</p>
+              <div id="warningAlertsList" class="space-y-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Process Issues -->
+        <div id="processIssuesCard" class="bg-purple-50 border-l-4 border-purple-500 rounded-lg shadow mb-4 hidden">
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleAlertCard('processIssues')">
+              <h3 class="text-lg font-semibold text-purple-900">
+                <i class="fas fa-tools mr-2"></i>Process Issues: PO Fulfillment
+                <i id="processIssuesToggleIcon" class="fas fa-chevron-down ml-2 text-sm"></i>
+              </h3>
+              <span class="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-bold" id="processIssueBadge">0</span>
+            </div>
+            <div id="processIssuesAlertsContent">
+              <p class="text-sm text-purple-800 mb-3">These ASINs have low vendor confirmation or receive fill rates. May result in chargebacks.</p>
+              <div id="processIssuesList" class="space-y-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full Inventory Table -->
+      <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-semibold text-gray-900">Vendor Central Inventory - Full Report</h2>
+              <p class="text-sm text-gray-600 mt-1">Complete inventory analysis for Amazon Vendor Central</p>
+            </div>
+            <button onclick="downloadCSV('vendorCentral', 'Vendor_Central_Inventory', event)" class="text-sm px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+              <i class="fas fa-download"></i> Download CSV
+            </button>
+          </div>
+        </div>
+        <div class="p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="vendorCentralTable">
+              <thead>
+                <tr class="text-left text-gray-600 border-b">
+                  <th class="pb-2 pr-4">Status</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('vendorCentralTable', 1, 'string')">ASIN</th>
+                  <th class="pb-2 pr-4 sortable" onclick="sortTable('vendorCentralTable', 2, 'string')">Title</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('vendorCentralTable', 3, 'number')">Sellable Units</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('vendorCentralTable', 4, 'number')">Unfilled Orders</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('vendorCentralTable', 5, 'number')">Open PO Qty</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('vendorCentralTable', 6, 'number')">Aged 90+ Units</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('vendorCentralTable', 7, 'number')">Days of Supply</th>
+                  <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('vendorCentralTable', 8, 'number')">Sell-Through %</th>
+                </tr>
+              </thead>
+              <tbody id="vendorCentralBody" class="divide-y divide-gray-100">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Holiday Planning View -->
+    <div id="holidayPlanningView" class="view hidden">
+      <div class="mb-4">
+        <button onclick="showView('dashboard')" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </button>
+      </div>
+      
+      <!-- Main Holiday Planning Content -->
+      <div id="holidayPlanningContent">
+        <!-- Content will be populated by loadHolidayForecast() -->
+      </div>
+      
+      <!-- Configuration Status -->
+      <div id="holidayConfigStatus" class="mb-6">
+        <!-- Will be populated by JavaScript -->
+      </div>
+
+      <!-- Growth Factor Control -->
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Growth Factor Settings</h3>
+        <div class="flex items-center gap-4">
+          <label class="text-gray-700">Expected Growth:</label>
+          <input type="range" id="growthSlider" min="0" max="50" value="10" class="w-64" onchange="updateGrowthFactor()">
+          <span id="growthValue" class="font-semibold text-lg">10%</span>
+          <button onclick="refreshHolidayData()" class="ml-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+            <i class="fas fa-sync-alt mr-2"></i>Recalculate
+          </button>
+          <button onclick="toggleDebugMode()" class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i class="fas fa-bug mr-2"></i>Debug Mode
+          </button>
+        </div>
+      </div>
+
+      <!-- Debug Mode Panel -->
+      <div id="debugModePanel" class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-6 hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">Debug Mode - Holiday Forecast Diagnostics</h3>
+          <button onclick="toggleDebugMode()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <button onclick="runAutomatedTests()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i class="fas fa-play mr-2"></i>Run Automated Tests
+          </button>
+          <button onclick="testDataSize()" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+            <i class="fas fa-chart-bar mr-2"></i>Test Data Size
+          </button>
+          <button onclick="testChunkedDelivery()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+            <i class="fas fa-layer-group mr-2"></i>Test Chunked Delivery
+          </button>
+          <button onclick="clearDebugLogs()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+            <i class="fas fa-trash mr-2"></i>Clear Logs
+          </button>
+        </div>
+        
+        <div class="bg-white rounded-lg p-4 border">
+          <h4 class="font-semibold mb-2">Debug Output:</h4>
+          <div id="debugOutput" class="bg-gray-900 text-green-400 p-4 rounded font-mono text-sm h-64 overflow-y-auto">
+            <div class="text-gray-500">Debug mode enabled. Run tests to see output here...</div>
+          </div>
+        </div>
+        
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-white p-4 rounded-lg border">
+            <h5 class="font-semibold text-gray-700 mb-2">Current Status</h5>
+            <div id="debugStatus" class="text-sm">
+              <div>Data loaded: <span id="debugDataLoaded" class="font-mono">false</span></div>
+              <div>Delivery method: <span id="debugDeliveryMethod" class="font-mono">unknown</span></div>
+              <div>Last update: <span id="debugLastUpdate" class="font-mono">never</span></div>
+            </div>
+          </div>
+          
+          <div class="bg-white p-4 rounded-lg border">
+            <h5 class="font-semibold text-gray-700 mb-2">Performance</h5>
+            <div id="debugPerformance" class="text-sm">
+              <div>Load time: <span id="debugLoadTime" class="font-mono">-</span></div>
+              <div>Data size: <span id="debugDataSize" class="font-mono">-</span></div>
+              <div>SKU count: <span id="debugSkuCount" class="font-mono">-</span></div>
+            </div>
+          </div>
+          
+          <div class="bg-white p-4 rounded-lg border">
+            <h5 class="font-semibold text-gray-700 mb-2">Issues</h5>
+            <div id="debugIssues" class="text-sm">
+              <div class="text-gray-500">No issues detected</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // Global data storage
+    let dashboardData = null;
+    let currentView = 'dashboard';
+    let isInitialized = false; // Guard against multiple initializations
+
+    // Expose for debugging
+    window.debugDashboard = () => {
+      console.log('Dashboard Data:', dashboardData);
+      if (dashboardData && dashboardData.vendorCentral) {
+        console.log('Vendor Central:', dashboardData.vendorCentral);
+      }
+    };
+
+    // Show/hide views
+    function showView(viewName) {
+      console.log('Showing view:', viewName);
+      
+      // Hide all views
+      document.querySelectorAll('.view').forEach(view => {
+        view.classList.add('hidden');
+      });
+      
+      // Show requested view
+      const viewElement = document.getElementById(viewName + 'View');
+      if (viewElement) {
+        viewElement.classList.remove('hidden');
+        currentView = viewName;
+        updateHeader(viewName);
+        
+        if (viewName !== 'dashboard') {
+          populateFullView(viewName);
+        }
+      }
+    }
+
+    // Update header for current view
+    function updateHeader(viewName) {
+      const subtitle = document.getElementById('pageSubtitle');
+      
+      if (viewName === 'dashboard') {
+        subtitle.textContent = 'Inventory Management Dashboard';
+      } else {
+        const viewNames = {
+          'fbmToFba': 'FBM to FBA Opportunities',
+          'excessInventory': 'Excess Inventory',
+          'revenueRisk': 'Revenue at Risk',
+          'skuTrendsAnalysis': 'SKU Sales Trends Analysis',
+          'lilfMonitor': 'Low Inventory Level Fee Monitor',
+          'vendorCentral': 'Vendor Central Inventory',
+          'holidayPlanning': `Holiday Inventory Planning ${new Date().getFullYear()}`
+        };
+        subtitle.textContent = viewNames[viewName] || viewName;
+      }
+    }
+
+    // Populate full view with data
+    function populateFullView(viewName) {
+      console.log('populateFullView called with:', viewName);
+      console.log('dashboardData available:', !!dashboardData);
+      
+      if (!dashboardData) {
+        console.log('No dashboard data available');
+        return;
+      }
+      
+      switch(viewName) {
+        case 'fbmToFba':
+          console.log('Calling populateFBMFullTable');
+          populateFBMFullTable();
+          break;
+        case 'excessInventory':
+          console.log('Calling populateExcessFullTable');
+          populateExcessFullTable();
+          break;
+        case 'revenueRisk':
+          console.log('Calling populateRevenueRiskFullTable');
+          console.log('Function exists:', typeof populateRevenueRiskFullTable);
+          if (typeof populateRevenueRiskFullTable === 'function') {
+            populateRevenueRiskFullTable();
+          } else {
+            console.error('populateRevenueRiskFullTable is not defined');
+          }
+          break;
+        case 'lilfMonitor':
+          console.log('Calling populateLILFFullView');
+          populateLILFFullView();
+          break;
+        case 'skuTrendsAnalysis':
+          console.log('Calling populateSKUTrendsAnalysisFullTable');
+          populateSKUTrendsAnalysisFullTable();
+          break;
+        case 'vendorCentral':
+          console.log('Calling populateVendorCentralView');
+          populateVendorCentralView();
+          break;
+        case 'holidayPlanning':
+          console.log('Holiday planning view - no populate needed');
+          // Holiday planning loads its own data via loadHolidayForecast
+          break;
+        default:
+          console.log('Unknown view:', viewName);
+      }
+    }
+
+    // Initialize dashboard
+    function initDashboard() {
+      // Guard against multiple initializations
+      if (isInitialized) {
+        console.warn('Dashboard already initialized, skipping duplicate initialization call');
+        return;
+      }
+      isInitialized = true;
+
+      console.log('Initializing dashboard...');
+      // Set dynamic year in footer
+      const currentYear = new Date().getFullYear();
+      const footerYear = document.getElementById('footerYear');
+      if (footerYear) {
+        footerYear.textContent = currentYear;
+      }
+      loadDashboardData();
+    }
+
+    // Load dashboard data
+    function loadDashboardData() {
+      console.log('Loading dashboard data for client:', clientId);
+      
+      // Start progress polling
+      startProgressPolling();
+      
+      // Log the exact client ID being sent
+      console.log('Calling loadDashboardData with clientId:', JSON.stringify(clientId));
+      console.log('ClientId type:', typeof clientId);
+      console.log('ClientId length:', clientId.length);
+      
+      google.script.run
+        .withSuccessHandler(handleDataSuccess)
+        .withFailureHandler(handleDataError)
+        .loadDashboardData(clientId);
+    }
+    
+    // Poll for loading progress
+    let progressInterval;
+    function startProgressPolling() {
+      // Clear any existing interval
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      
+      // Poll every 500ms
+      progressInterval = setInterval(() => {
+        google.script.run
+          .withSuccessHandler(updateProgress)
+          .withFailureHandler(() => {
+            // Ignore errors in progress polling
+          })
+          .getLoadingProgress(clientId);
+      }, 500);
+    }
+    
+    // Update progress display
+    function updateProgress(progressData) {
+      if (!progressData) return;
+      
+      const { progress, message } = progressData;
+      
+      // Update progress bar
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      const progressPercent = document.getElementById('progressPercent');
+      
+      if (progressBar && progressText && progressPercent) {
+        progressBar.style.width = `${progress}%`;
+        progressText.textContent = message;
+        progressPercent.textContent = `${progress}%`;
+      }
+      
+      // Stop polling if complete or error
+      if (progress >= 100 || progress < 0) {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+      }
+    }
+
+    // Handle successful data load
+    function handleDataSuccess(data) {
+      console.log('Dashboard data received:', data);
+
+      // Check if data is null or undefined
+      if (!data) {
+        console.error('Received null/undefined data from server');
+        handleDataError('No data received from server. Please check client configuration.');
+        return;
+      }
+
+      // Check if data contains an error
+      if (data.error) {
+        console.error('Server returned error:', data.message);
+        handleDataError(data.message || 'Error loading dashboard data');
+        return;
+      }
+
+      console.log('Data keys:', Object.keys(data));
+
+      // Show final processing state
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      const progressPercent = document.getElementById('progressPercent');
+
+      if (progressBar && progressText && progressPercent) {
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Finalizing dashboard...';
+        progressPercent.textContent = '100%';
+      }
+
+      // Stop progress polling
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      dashboardData = data;
+      window.dashboardData = data; // Expose for debugging
+      console.log('=== VENDOR DEBUG (Frontend) ===');
+      console.log('vendorCentral exists:', !!data.vendorCentral);
+      console.log('vendorCentral value:', data.vendorCentral);
+
+      // Use setTimeout to allow UI to update before heavy processing
+      setTimeout(function() {
+        displayDashboard();
+
+        // Update last updated time
+        updateLastUpdatedTime();
+      }, 100);
+    }
+    
+    // Update last updated timestamp
+    function updateLastUpdatedTime() {
+      google.script.run
+        .withSuccessHandler(function(timeString) {
+          document.getElementById('lastUpdated').textContent = 'Last updated: ' + timeString;
+          document.getElementById('headerLastUpdated').textContent = timeString;
+        })
+        .getLastUpdateTime(clientId);
+    }
+
+    // Handle data load error
+    function handleDataError(error) {
+      console.error('Dashboard data error:', error);
+      
+      // Stop progress polling
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+      
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+      document.getElementById('errorMessage').textContent = error.message || 'Failed to load dashboard data';
+    }
+
+    // Display dashboard with data
+    function displayDashboard() {
+      console.log('displayDashboard called');
+      console.log('Dashboard data:', dashboardData);
+      console.log('skuTrendsAnalysis data:', dashboardData.skuTrendsAnalysis);
+      console.log('skuTrendsAnalysis length:', dashboardData.skuTrendsAnalysis ? dashboardData.skuTrendsAnalysis.length : 'undefined');
+
+      // Update metrics first (fast operation)
+      updateMetrics();
+
+      // Hide loading/error, show dashboard
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+      showView('dashboard');
+
+      // Defer table population to allow dashboard to render first
+      setTimeout(function() {
+        populateFBMTable();
+        populateExcessTable();
+        populateRevenueRiskTable();
+        populateLILFTable();
+      }, 50);
+    }
+
+    // Update summary metrics
+    function updateMetrics() {
+      const changes = dashboardData.changes || {};
+      
+      // Helper function to create change indicator
+      function createChangeIndicator(value, change, isRevenue = false) {
+        if (changes.isFirstLoad || change === 0) {
+          return value;
+        }
+        
+        const arrow = change > 0 ? '↑' : '↓';
+        const color = change > 0 ? 'text-green-600' : 'text-red-600';
+        const changeText = isRevenue ? Math.abs(change).toFixed(0) : Math.abs(change);
+        
+        return `${value} <span class="${color} text-sm font-medium">${arrow}${changeText}</span>`;
+      }
+      
+      // FBM to FBA count
+      document.getElementById('fbmCount').innerHTML = 
+        createChangeIndicator(dashboardData.fbmToFba.length, changes.fbmChange || 0);
+      
+      // Excess inventory count
+      document.getElementById('excessCount').innerHTML = 
+        createChangeIndicator(dashboardData.excessInventory.length, changes.excessChange || 0);
+      
+      // Revenue at risk total - show daily lost revenue
+      const totalLostPerDay = dashboardData.revenueRisk.reduce(
+        (sum, item) => sum + item.lostRevenuePerDay, 0
+      );
+      const revenueText = '$' + formatNumber(totalLostPerDay) + '/day';
+      document.getElementById('revenueRisk').innerHTML = 
+        createChangeIndicator(revenueText, changes.revenueRiskChange || 0, true);
+      
+      // LILF groups count
+      const lilfValue = dashboardData.lilfMonitor.length > 0 ? dashboardData.lilfMonitor.length : 'None';
+      if (lilfValue === 'None') {
+        document.getElementById('lilfCount').textContent = lilfValue;
+      } else {
+        document.getElementById('lilfCount').innerHTML = 
+          createChangeIndicator(lilfValue, changes.lilfChange || 0);
+      }
+        
+      // SKU Trends count
+      const trendsValue = dashboardData.skuTrendsAnalysis ? dashboardData.skuTrendsAnalysis.length : 0;
+      document.getElementById('trendsCount').innerHTML =
+        createChangeIndicator(trendsValue, changes.trendsChange || 0);
+
+      // Vendor Central count and alert (only if vendor data exists)
+      if (dashboardData.vendorCentral && dashboardData.vendorCentral.items) {
+        const vendorCard = document.getElementById('vendorCentralCard');
+        vendorCard.classList.remove('hidden');
+
+        const vendorCount = dashboardData.vendorCentral.summary.totalAsins;
+        document.getElementById('vendorCount').textContent = vendorCount;
+
+        const criticalCount = dashboardData.vendorCentral.summary.criticalCount;
+        if (criticalCount > 0) {
+          document.getElementById('vendorAlertCount').textContent = `${criticalCount} Critical Alert${criticalCount > 1 ? 's' : ''}`;
+        }
+      }
+    }
+
+    // Populate FBM to FBA table
+    function populateFBMTable() {
+      const tbody = document.getElementById('fbmTable');
+      
+      if (dashboardData.fbmToFba.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">No FBM opportunities found</td></tr>';
+        return;
+      }
+      
+      const newSkus = new Set(dashboardData.changes?.newFbmSkus || []);
+      
+      tbody.innerHTML = dashboardData.fbmToFba.slice(0, 10).map(item => {
+        const isNew = newSkus.has(item.sku);
+        return `
+        <tr class="hover:bg-gray-50">
+          <td class="py-2">
+            <div class="font-medium text-gray-900">
+              ${item.sku}
+              ${isNew ? '<span class="ml-2 text-green-600 font-bold">+</span>' : ''}
+            </div>
+            <div class="text-xs text-gray-500 truncate max-w-xs" title="${item.title}">
+              ${item.title || ''}
+            </div>
+          </td>
+          <td class="py-2 font-medium text-green-600">
+            $${formatNumber(item.revenue60Days)}
+          </td>
+          <td class="py-2 text-gray-600">
+            ${item.units60Days}
+          </td>
+        </tr>
+      `}).join('');
+    }
+
+    // Populate Excess Inventory table
+    function populateExcessTable() {
+      const tbody = document.getElementById('excessTable');
+      
+      if (dashboardData.excessInventory.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">No excess inventory found</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = dashboardData.excessInventory.slice(0, 10).map(item => `
+        <tr class="hover:bg-gray-50">
+          <td class="py-2">
+            <div class="font-medium text-gray-900">${item.sku}</div>
+            <div class="text-xs text-gray-500 truncate max-w-xs" title="${item.title}">
+              ${item.title || ''}
+            </div>
+          </td>
+          <td class="py-2">
+            <span class="badge badge-danger">${item.days365Plus}</span>
+          </td>
+          <td class="py-2 font-medium">${item.totalAgedUnits}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Populate Revenue at Risk table
+    function populateRiskTable() {
+      const tbody = document.getElementById('riskTable');
+
+      if (dashboardData.revenueRisk.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="3" class="text-center py-6">
+              <div class="text-green-600">
+                <i class="fas fa-check-circle text-2xl mb-2"></i>
+                <p class="font-medium">Great news! No revenue at risk</p>
+                <p class="text-sm text-gray-600 mt-1">All FBA inventory is adequately stocked (including warehouse and inbound inventory)</p>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      // Group items by ASIN
+      const asinGroups = new Map();
+      dashboardData.revenueRisk.forEach(item => {
+        if (!asinGroups.has(item.asin)) {
+          asinGroups.set(item.asin, []);
+        }
+        asinGroups.get(item.asin).push(item);
+      });
+
+      let html = '';
+
+      // Process each ASIN group
+      asinGroups.forEach((items, asin) => {
+        // Sort items within group - primary first
+        items.sort((a, b) => {
+          if (a.isPrimary && !b.isPrimary) return -1;
+          if (!a.isPrimary && b.isPrimary) return 1;
+          return b.lostRevenuePerDay - a.lostRevenuePerDay;
+        });
+
+        const hasMultipleSKUs = items.length > 1;
+        const groupId = `asin-group-${asin.replace(/[^a-zA-Z0-9]/g, '')}`;
+
+        items.forEach((item, index) => {
+          const isPrimary = item.isPrimary !== false; // Default to true if not set
+          const isSecondary = !isPrimary;
+
+          // Format inbound status
+          let inboundStatus = '';
+          if (item.totalInbound > 0) {
+            const inboundParts = [];
+            if (item.inboundWorking > 0) inboundParts.push(`${item.inboundWorking} working`);
+            if (item.inboundShipped > 0) inboundParts.push(`${item.inboundShipped} shipped`);
+            if (item.inboundReceiving > 0) inboundParts.push(`${item.inboundReceiving} receiving`);
+            inboundStatus = `<div class="text-xs text-green-600 mt-1">📦 ${item.totalInbound} units inbound (${inboundParts.join(', ')})</div>`;
+          }
+
+          // Format shared ASIN warning/badge
+          let sharedAsinBadge = '';
+          if (hasMultipleSKUs && index === 0) {
+            // Show toggle and count badge on first (primary) SKU
+            const toggleIcon = '▼'; // Will be toggled with JS
+            sharedAsinBadge = `
+              <div class="inline-flex items-center gap-2 mt-1">
+                <button
+                  onclick="toggleAsinGroup('${groupId}')"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition-colors"
+                  id="toggle-${groupId}"
+                  title="Click to show/hide ${items.length - 1} additional SKU(s) for this ASIN"
+                >
+                  <span class="toggle-icon">${toggleIcon}</span>
+                  ${items.length} SKUs share this ASIN
+                </button>
+                <span class="text-xs text-amber-600" title="Multiple SKUs share the same ASIN. Manual review recommended.">
+                  <svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                  </svg>
+                </span>
+              </div>`;
+          } else if (isSecondary) {
+            // Show secondary badge
+            sharedAsinBadge = `<div class="text-xs text-gray-500 italic mt-1">Secondary SKU (Primary: ${item.primarySku || 'unknown'})</div>`;
+          }
+
+          // Build row classes
+          const rowClasses = [
+            'hover:bg-gray-50',
+            'transition-colors',
+            isSecondary ? `${groupId}-secondary hidden` : '', // Secondary rows hidden by default
+            isSecondary ? 'bg-gray-50' : ''
+          ].filter(c => c).join(' ');
+
+          // Build cell content with indentation for secondary SKUs
+          const indent = isSecondary ? '<span class="inline-block w-4 text-gray-400">↳</span>' : '';
+          const skuStyle = isSecondary ? 'text-gray-600' : 'text-gray-900 font-medium';
+          const titleStyle = isSecondary ? 'text-gray-400' : 'text-gray-500';
+
+          html += `
+            <tr class="${rowClasses}">
+              <td class="py-2">
+                <div class="flex items-start">
+                  ${indent}
+                  <div class="flex-1">
+                    <div class="${skuStyle}">${item.sku}</div>
+                    <div class="text-xs ${titleStyle} truncate max-w-xs" title="${item.title}">
+                      ${item.title || ''}
+                    </div>
+                    ${inboundStatus}
+                    ${sharedAsinBadge}
+                  </div>
+                </div>
+              </td>
+              <td class="py-2 font-medium text-red-600">
+                $${formatNumber(item.revenue90Days)}
+              </td>
+              <td class="py-2 text-gray-600">
+                $${item.lostRevenuePerDay.toFixed(2)}/day
+              </td>
+            </tr>
+          `;
+        });
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    // Toggle visibility of secondary SKUs for an ASIN group
+    window.toggleAsinGroup = function(groupId) {
+      const secondaryRows = document.querySelectorAll(`.${groupId}-secondary`);
+      const toggleBtn = document.getElementById(`toggle-${groupId}`);
+
+      if (!secondaryRows || secondaryRows.length === 0 || !toggleBtn) return;
+
+      const toggleIcon = toggleBtn.querySelector('.toggle-icon');
+      const isHidden = secondaryRows[0].classList.contains('hidden');
+
+      secondaryRows.forEach(row => {
+        if (isHidden) {
+          row.classList.remove('hidden');
+        } else {
+          row.classList.add('hidden');
+        }
+      });
+
+      // Update toggle icon
+      if (toggleIcon) {
+        toggleIcon.textContent = isHidden ? '▲' : '▼';
+      }
+    };
+
+
+    // Create sparkline with working tooltip
+    function createSparklineWithTooltip(data, periodData, color) {
+      if (!data || data.length === 0) return '';
+      
+      const width = 100;
+      const height = 40;
+      const periods = ['61-90 days', '31-60 days', '1-30 days'];
+      
+      // Create tooltip text
+      let tooltipText = periods.map((period, i) => 
+        `${period}: ${Math.round(data[i])} units`
+      ).join(' | ');
+      
+      return `
+        <div class="inline-block relative group">
+          ${createSparkline(data, width, height, color, periodData)}
+          <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-50">
+            ${tooltipText}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Create sparkline SVG
+    function createSparkline(data, width = 100, height = 40, color, periodData) {
+      if (!data || data.length === 0) {
+        return '<span class="text-xs text-gray-400">No data</span>';
+      }
+      
+      // Ensure we have valid numbers
+      const validData = data.map(d => parseFloat(d) || 0);
+      const max = Math.max(...validData);
+      const min = 0;
+      const range = max || 1;
+      
+      // Add padding
+      const padding = 5;
+      const chartWidth = width - padding * 2;
+      const chartHeight = height - padding * 2;
+      
+      // Create points
+      const points = validData.map((value, index) => {
+        const x = padding + (index / (validData.length - 1)) * chartWidth;
+        const y = padding + chartHeight - (value / range) * chartHeight;
+        return { x, y, value };
+      });
+      
+      // Create path
+      const pathData = points
+        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+        .join(' ');
+      
+      // Create area for gradient
+      const areaData = pathData + ` L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+      
+      const gradId = 'grad' + Math.random().toString(36).substring(2, 9);
+      
+      // Format period data if available
+      let titleText = '';
+      if (periodData) {
+        titleText = `61-90 days: ${periodData['61-90 days']} units\n31-60 days: ${periodData['31-60 days']} units\n1-30 days: ${periodData['1-30 days']} units`;
+      }
+      
+      return `
+        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="inline-block" title="${titleText}">
+          <defs>
+            <linearGradient id="${gradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:${color};stop-opacity:0.3" />
+              <stop offset="100%" style="stop-color:${color};stop-opacity:0.05" />
+            </linearGradient>
+          </defs>
+          <path d="${areaData}" fill="url(#${gradId})" />
+          <path d="${pathData}" fill="none" stroke="${color}" stroke-width="2" />
+          ${points.map((point, index) => 
+            `<circle cx="${point.x}" cy="${point.y}" r="3" fill="${color}" />`
+          ).join('')}
+        </svg>
+      `;
+    }
+    
+    // Populate SKU Trends Analysis table
+    function populateTrendsAnalysisTable() {
+      const tbody = document.getElementById('trendsAnalysisTable');
+      
+      console.log('populateTrendsAnalysisTable called');
+      console.log('skuTrendsAnalysis data:', dashboardData.skuTrendsAnalysis);
+      
+      if (!dashboardData.skuTrendsAnalysis || dashboardData.skuTrendsAnalysis.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">No trending SKUs found (minimum 20 sales in 90 days)</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = dashboardData.skuTrendsAnalysis.map(item => {
+        const sparklineHtml = createSparklineWithTooltip(item.sparklineData, item.periodData, '#6b7280');
+        return `
+        <tr class="hover:bg-gray-50">
+          <td class="py-2 text-sm font-mono">${item.asin}</td>
+          <td class="py-2 text-sm font-medium">${item.sku}</td>
+          <td class="py-2">
+            <div class="text-sm text-gray-900 max-w-xs" title="${item.title}">
+              ${item.title.length > 60 ? item.title.substring(0, 60) + '...' : item.title}
+            </div>
+          </td>
+          <td class="py-2 text-center font-medium">${item.units90}</td>
+          <td class="py-2 text-center font-medium">$${formatNumber(Math.round(item.revenue30))}</td>
+          <td class="py-2 text-center font-medium ${
+            item.daysOfSupply === '∞' ? 'text-gray-400' :
+            item.daysOfSupply === 0 ? 'text-red-600' :
+            item.daysOfSupply < 14 ? 'text-red-600 font-bold' :
+            item.daysOfSupply < 30 ? 'text-orange-500' :
+            item.daysOfSupply < 60 ? 'text-green-600' :
+            item.daysOfSupply < 90 ? 'text-blue-600' :
+            'text-purple-600'
+          }">${item.daysOfSupply}</td>
+          <td class="py-2 text-center">
+            ${sparklineHtml}
+          </td>
+          <td class="py-2 text-center">
+            <span class="text-sm font-medium ${item.percentChange >= 0 ? 'text-green-600' : 'text-red-600'}">
+              ${item.percentChange > 0 ? '+' : ''}${item.percentChange.toFixed(0)}%
+            </span>
+          </td>
+        </tr>
+      `;
+      }).join('');
+    }
+
+    // Populate LILF Groups
+    function populateLILFGroups() {
+      const container = document.getElementById('lilfGroups');
+      
+      if (dashboardData.lilfMonitor.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-500">None</p>';
+        return;
+      }
+      
+      container.innerHTML = dashboardData.lilfMonitor.map(group => `
+        <div class="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h4 class="font-medium text-gray-900">Parent ASIN: ${group.parentAsin}</h4>
+              <p class="text-sm text-gray-600">${group.title || ''}</p>
+            </div>
+            <span class="badge badge-warning">
+              ${group.skus.length} SKU${group.skus.length > 1 ? 's' : ''} with LILF
+            </span>
+          </div>
+          <div class="space-y-2">
+            ${group.skus.map(sku => `
+              <div class="flex justify-between items-center text-sm bg-gray-50 rounded p-2">
+                <span class="text-gray-700 font-medium">${sku.sku}</span>
+                <span class="text-gray-600">
+                  Inventory: ${sku.currentInventory} units
+                  ${sku.inboundInventory > 0 ? `(+${sku.inboundInventory} inbound)` : ''}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Format number with commas
+    function formatNumber(num) {
+      return Math.round(num).toLocaleString();
+    }
+
+    // Refresh data
+    function refreshData() {
+      document.getElementById('dashboard').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+      document.getElementById('loadingState').classList.remove('hidden');
+      loadDashboardData();
+    }
+
+    // Copy table to clipboard
+    function copyTable(tableId, evt) {
+      // Stop event propagation to prevent panel clicks
+      if (evt) {
+        evt.stopPropagation();
+      }
+      
+      const table = document.getElementById(tableId);
+      if (!table) {
+        console.error('Table not found:', tableId);
+        return;
+      }
+      
+      let text = '';
+      const rows = table.querySelectorAll('tr');
+      
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('th, td');
+        const rowText = Array.from(cells).map(cell => cell.textContent.trim()).join('\t');
+        text += rowText + '\n';
+      });
+      
+      // Get the button that was clicked
+      const button = evt ? evt.target.closest('button') : document.activeElement;
+      
+      // Try to copy to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          // Show a brief success message
+          if (button) {
+            const originalHtml = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            button.classList.add('text-green-600');
+            
+            setTimeout(() => {
+              button.innerHTML = originalHtml;
+              button.classList.remove('text-green-600');
+            }, 2000);
+          }
+        }).catch(err => {
+          console.error('Failed to copy:', err);
+          // Fallback for older browsers
+          fallbackCopyTextToClipboard(text, button);
+        });
+      } else {
+        // Fallback for older browsers
+        fallbackCopyTextToClipboard(text, button);
+      }
+    }
+    
+    // Fallback copy function for older browsers
+    function fallbackCopyTextToClipboard(text, button) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        const successful = document.execCommand('copy');
+        if (successful && button) {
+          const originalHtml = button.innerHTML;
+          button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+          button.classList.add('text-green-600');
+          
+          setTimeout(() => {
+            button.innerHTML = originalHtml;
+            button.classList.remove('text-green-600');
+          }, 2000);
+        } else if (!successful) {
+          alert('Failed to copy to clipboard');
+        }
+      } catch (err) {
+        console.error('Fallback: Failed to copy:', err);
+        alert('Failed to copy to clipboard');
+      }
+      
+      document.body.removeChild(textArea);
+    }
+    
+    // Download data as CSV
+    function downloadCSV(dataKey, filename, evt) {
+      // Stop event propagation to prevent panel clicks
+      if (evt) {
+        evt.stopPropagation();
+      }
+      
+      // Special handling for holiday forecast
+      if (dataKey === 'holidayForecast') {
+        downloadHolidayForecastCSV(filename);
+        return;
+      }
+      
+      if (!dashboardData || !dashboardData[dataKey]) return;
+
+      // Handle vendorCentral special structure
+      let data;
+      if (dataKey === 'vendorCentral') {
+        data = dashboardData[dataKey].items;
+      } else {
+        data = dashboardData[dataKey];
+      }
+
+      if (!data || data.length === 0) return;
+      
+      let csv = '';
+      
+      // Define headers for each data type
+      const headerMap = {
+        fbmToFba: ['SKU', 'Title', '60-Day Units', '60-Day Revenue', 'Avg Price'],
+        excessInventory: ['SKU', 'Title', '365+ Days', '271-365 Days', '181-270 Days', 'Total Aged Units'],
+        revenueRisk: ['SKU', 'Title', '90-Day Revenue', 'Lost Revenue/Day', 'Inbound Units', '365-Day Revenue'],
+        skuTrendsAnalysis: ['ASIN', 'SKU', 'Title', 'FBA Inventory', 'AWD Inventory', 'Days of Supply', '90-Day Units Sold', '90-Day Revenue', 'Change %'],
+        vendorCentral: ['Status', 'ASIN', 'Title', 'Sellable Units', 'Unfilled Orders', 'Open PO Qty', 'Aged 90+ Units', 'Days of Supply', 'Sell-Through %', 'Sellable Value', 'Unfilled Value']
+      };
+      
+      const headers = headerMap[dataKey];
+      if (!headers) return;
+      
+      // Add headers
+      csv += headers.join(',') + '\n';
+      
+      // Add data rows
+      data.forEach(item => {
+        let row = [];
+        
+        switch(dataKey) {
+          case 'fbmToFba':
+            row = [
+              escapeCSV(item.sku),
+              escapeCSV(item.title || ''),
+              item.units60Days,
+              item.revenue60Days.toFixed(2),
+              item.avgPrice.toFixed(2)
+            ];
+            break;
+          case 'excessInventory':
+            row = [
+              escapeCSV(item.sku),
+              escapeCSV(item.title || ''),
+              item.days365Plus || 0,
+              item.days271_365 || 0,
+              item.days181_270 || 0,
+              item.totalAgedUnits
+            ];
+            break;
+          case 'revenueRisk':
+            row = [
+              escapeCSV(item.sku),
+              escapeCSV(item.title || ''),
+              item.revenue90Days.toFixed(2),
+              item.lostRevenuePerDay.toFixed(2),
+              item.totalInbound || 0,
+              (item.revenue365Days || 0).toFixed(2)
+            ];
+            break;
+          case 'skuTrendsAnalysis':
+            row = [
+              escapeCSV(item.asin),
+              escapeCSV(item.sku),
+              escapeCSV(item.title || ''),
+              item.fbaInventory || 0,
+              item.awdInventory || 0,
+              item.daysOfSupply,
+              item.units90,
+              Math.round(item.revenue90),
+              item.percentChange.toFixed(1) + '%'
+            ];
+            break;
+          case 'vendorCentral':
+            row = [
+              escapeCSV(item.status),
+              escapeCSV(item.asin),
+              escapeCSV(item.title || ''),
+              item.sellableUnits,
+              item.unfilledOrders,
+              item.openPOQuantity,
+              item.aged90Units,
+              item.daysOfSupply,
+              item.sellThrough > 0 ? item.sellThrough.toFixed(1) + '%' : 'N/A',
+              item.sellableValue.toFixed(2),
+              item.unfilledOrderValue.toFixed(2)
+            ];
+            break;
+        }
+        
+        csv += row.join(',') + '\n';
+      });
+      
+      // Download file
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename + '_' + new Date().toISOString().split('T')[0] + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
+    
+    // Escape CSV values
+    function escapeCSV(value) {
+      if (value === null || value === undefined) return '';
+      const stringValue = String(value);
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return '"' + stringValue.replace(/"/g, '""') + '"';
+      }
+      return stringValue;
+    }
+    
+    // Populate FBM Full Table
+    function populateFBMFullTable() {
+      const tbody = document.getElementById('fbmFullBody');
+      const newSkus = new Set(dashboardData.changes?.newFbmSkus || []);
+      
+      tbody.innerHTML = dashboardData.fbmToFba.map(item => {
+        const isNew = newSkus.has(item.sku);
+        return `
+        <tr>
+          <td class="py-2">
+            <a href="https://sellercentral.amazon.com/skucentral?mSku=${encodeURIComponent(item.sku)}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
+              ${item.sku}
+            </a>
+            ${isNew ? '<span class="ml-2 text-green-600 font-bold">+</span>' : ''}
+          </td>
+          <td class="py-2">${item.title || ''}</td>
+          <td class="py-2">${item.units60Days}</td>
+          <td class="py-2">$${formatNumber(item.revenue60Days)}</td>
+          <td class="py-2">$${item.avgPrice.toFixed(2)}</td>
+        </tr>
+      `}).join('');
+    }
+    
+    // Populate Excess Full Table
+    function populateExcessFullTable() {
+      const tbody = document.getElementById('excessFullBody');
+      tbody.innerHTML = dashboardData.excessInventory.map(item => `
+        <tr>
+          <td class="py-2">
+            <a href="https://sellercentral.amazon.com/skucentral?mSku=${encodeURIComponent(item.sku)}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
+              ${item.sku}
+            </a>
+          </td>
+          <td class="py-2">${item.title || ''}</td>
+          <td class="py-2 text-center font-medium text-red-600">${item.days365Plus || 0}</td>
+          <td class="py-2 text-center text-orange-600">${item.days271_365 || 0}</td>
+          <td class="py-2 text-center text-yellow-600">${item.days181_270 || 0}</td>
+          <td class="py-2 text-center font-bold">${item.totalAgedUnits}</td>
+        </tr>
+      `).join('');
+    }
+    
+    // Populate Revenue Risk Full Table
+    function populateRevenueRiskFullTable() {
+      const tbody = document.getElementById('riskFullBody');
+      
+      if (dashboardData.revenueRisk.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-12">
+              <div class="text-green-600">
+                <i class="fas fa-check-circle text-4xl mb-3"></i>
+                <p class="text-xl font-semibold">Excellent! No FBA revenue at risk</p>
+                <p class="text-gray-600 mt-2 max-w-2xl mx-auto">
+                  All your FBA SKUs have sufficient inventory coverage. This includes both inventory currently at Amazon warehouses 
+                  and inventory that is inbound to Amazon. Keep monitoring to maintain this healthy inventory position.
+                </p>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+      
+      tbody.innerHTML = dashboardData.revenueRisk.map(item => {
+        // Format inbound details
+        let inboundDisplay = '';
+        if (item.totalInbound > 0) {
+          const details = [];
+          if (item.inboundWorking > 0) details.push(`${item.inboundWorking} working`);
+          if (item.inboundShipped > 0) details.push(`${item.inboundShipped} shipped`);
+          if (item.inboundReceiving > 0) details.push(`${item.inboundReceiving} receiving`);
+          inboundDisplay = `<span class="text-green-600 font-medium">${item.totalInbound}</span><br><span class="text-xs text-gray-500">${details.join(', ')}</span>`;
+        } else {
+          inboundDisplay = '<span class="text-gray-400">0</span>';
+        }
+        
+        return `
+          <tr>
+            <td class="py-2">
+              <a href="https://sellercentral.amazon.com/skucentral?mSku=${encodeURIComponent(item.sku)}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
+                ${item.sku}
+              </a>
+            </td>
+            <td class="py-2">${item.title || ''}</td>
+            <td class="py-2 text-center font-medium text-red-600">$${formatNumber(item.revenue90Days)}</td>
+            <td class="py-2 text-center font-medium text-orange-600">$${item.lostRevenuePerDay.toFixed(2)}/day</td>
+            <td class="py-2 text-center">${inboundDisplay}</td>
+            <td class="py-2 text-center">$${formatNumber(item.revenue365Days || 0)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    
+    // Populate LILF Full View
+    function populateLILFFullView() {
+      const container = document.getElementById('lilfFullGroups');
+      
+      if (dashboardData.lilfMonitor.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-500">None - No SKUs currently have Low Inventory Level Fees applied</p>';
+        return;
+      }
+      
+      container.innerHTML = dashboardData.lilfMonitor.map(group => `
+        <div class="border border-gray-200 rounded-lg p-4 mb-4">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h4 class="font-medium text-gray-900">Parent ASIN: ${group.parentAsin}</h4>
+              <p class="text-sm text-gray-600">${group.title || ''}</p>
+            </div>
+            <span class="badge badge-warning">
+              ${group.skus.length} SKU${group.skus.length > 1 ? 's' : ''} with LILF applied
+            </span>
+          </div>
+          <div class="space-y-2">
+            ${group.skus.map(sku => `
+              <div class="flex justify-between items-center text-sm bg-gray-50 rounded p-2">
+                <span class="text-gray-700 font-medium">${sku.sku}</span>
+                <span class="text-gray-600">
+                  Current: ${sku.currentInventory} units
+                  ${sku.inboundInventory > 0 ? `| Inbound: ${sku.inboundInventory} units` : ''}
+                  | Total: ${sku.totalInventory} units
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    // Store filtered data
+    let filteredSKUData = [];
+    
+    // Populate SKU Trends Analysis Full Table
+    function populateSKUTrendsAnalysisFullTable() {
+      if (!dashboardData.skuTrendsAnalysis || dashboardData.skuTrendsAnalysis.length === 0) {
+        document.getElementById('skuTrendsAnalysisFullBody').innerHTML = '<tr><td colspan="10" class="text-center py-4 text-gray-500">No trending SKUs found</td></tr>';
+        return;
+      }
+      
+      // Initialize filtered data with all data
+      filteredSKUData = [...dashboardData.skuTrendsAnalysis];
+      renderSKUTrendsTable(filteredSKUData);
+      updateFilterStats();
+    }
+    
+    // Render the SKU trends table with given data
+    function renderSKUTrendsTable(data) {
+      const tbody = document.getElementById('skuTrendsAnalysisFullBody');
+      
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-gray-500">No SKUs match the selected filters</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = data.map(item => {
+        // Determine row class based on inventory status
+        let rowClass = '';
+        if (item.isTop20Percent) rowClass = 'bg-yellow-50';
+        else if (item.isCriticalStock) rowClass = 'bg-red-50';
+        else if (item.isLowStock) rowClass = 'bg-orange-50';
+        else if (item.isOutOfStock) rowClass = 'bg-gray-50';
+        
+        // Create badges
+        const badges = [];
+        if (item.isTop20Percent) badges.push('<span class="px-2 py-1 text-xs bg-yellow-200 text-yellow-800 rounded">TOP 20%</span>');
+        if (item.revenueTier) badges.push(`<span class="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded">Tier ${item.revenueTier}</span>`);
+        if (item.isCriticalStock) badges.push('<span class="px-2 py-1 text-xs bg-red-200 text-red-800 rounded">CRITICAL</span>');
+        else if (item.isLowStock) badges.push('<span class="px-2 py-1 text-xs bg-orange-200 text-orange-800 rounded">LOW</span>');
+        else if (item.isOutOfStock) badges.push('<span class="px-2 py-1 text-xs bg-gray-200 text-gray-800 rounded">OOS</span>');
+
+        // Construct URLs cleanly
+        const skuUrl = 'https://sellercentral.amazon.com/skucentral?mSku=' + encodeURIComponent(item.sku);
+        const asinUrl = item.asin ? 'https://www.amazon.com/dp/' + item.asin : '';
+
+        return `
+        <tr class="${rowClass}">
+          <td class="py-2">
+            ${item.asin ? `<a href="${asinUrl}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">${item.asin}</a>` : ''}
+          </td>
+          <td class="py-2">
+            <div class="flex items-start gap-1">
+              <a href="${skuUrl}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
+                ${item.sku}
+              </a>
+              ${item.hasSharedAsin ? `
+                <div class="relative group">
+                  <span class="inline-block px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded cursor-help">
+                    <i class="fas fa-exclamation-triangle"></i>
+                  </span>
+                  <div class="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-2 px-3 bottom-full left-0 mb-1 whitespace-nowrap">
+                    <div class="font-semibold mb-1">Shared ASIN Warning</div>
+                    <div>Multiple SKUs share ASIN ${item.asin}:</div>
+                    <div class="mt-1">${item.sharedSkus.join(', ')}</div>
+                    <div class="mt-1 text-yellow-300">Sales data may be attributed to wrong SKU</div>
+                    <div class="absolute top-full left-4 -mt-1">
+                      <div class="border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+            <div class="mt-1">${badges.join(' ')}</div>
+          </td>
+          <td class="py-2" title="${item.title || ''}">${item.title || ''}</td>
+          <td class="py-2 text-center ${item.fbaInventory < item.units90 / 3 ? 'text-red-600 font-medium' : ''}">${item.fbaInventory || 0}</td>
+          <td class="py-2 text-center ${item.awdInventory > 0 ? 'text-blue-600 font-medium' : 'text-gray-400'}">${item.awdInventory || 0}</td>
+          <td class="py-2 text-center font-medium ${
+            item.daysOfSupply === '∞' ? 'text-gray-400' :
+            item.daysOfSupply === 0 ? 'text-red-600' :
+            item.daysOfSupply < 14 ? 'text-red-600 font-bold' :
+            item.daysOfSupply < 30 ? 'text-orange-500' :
+            item.daysOfSupply < 60 ? 'text-green-600' :
+            item.daysOfSupply < 90 ? 'text-blue-600' :
+            'text-purple-600'
+          }">${item.daysOfSupply}</td>
+          <td class="py-2 text-center">${item.units90}</td>
+          <td class="py-2 text-center">
+            ${createSparkline(item.sparklineData, 100, 40, '#6b7280', item.periodData)}
+          </td>
+          <td class="py-2 text-center">$${formatNumber(item.revenue90 || 0)}</td>
+          <td class="py-2 text-center font-medium ${item.percentChange >= 0 ? 'text-green-600' : 'text-red-600'}">
+            ${item.percentChange > 0 ? '+' : ''}${item.percentChange.toFixed(1)}%
+          </td>
+        </tr>
+      `}).join('');
+    }
+    
+    // Apply filters
+    function applyFilters() {
+      const revenueFilter = document.getElementById('revenueFilter').value;
+      const inventoryFilter = document.getElementById('inventoryFilter').value;
+      const trendFilter = document.getElementById('trendFilter').value;
+      
+      filteredSKUData = dashboardData.skuTrendsAnalysis.filter(item => {
+        // Revenue filter
+        if (revenueFilter !== 'all') {
+          if (revenueFilter === 'top20' && !item.isTop20Percent) return false;
+          if (revenueFilter === 'tier-a' && item.revenueTier !== 'A') return false;
+          if (revenueFilter === 'tier-b' && item.revenueTier !== 'B') return false;
+          if (revenueFilter === 'tier-c' && item.revenueTier !== 'C') return false;
+          if (revenueFilter === 'tier-d' && item.revenueTier !== 'D') return false;
+        }
+        
+        // Inventory filter
+        if (inventoryFilter !== 'all') {
+          if (inventoryFilter === 'critical' && !item.isCriticalStock) return false;
+          if (inventoryFilter === 'low' && !item.isLowStock) return false;
+          if (inventoryFilter === 'healthy' && (item.daysOfInventory < 30 || item.daysOfInventory > 180)) return false;
+          if (inventoryFilter === 'overstocked' && !item.isOverstocked) return false;
+          if (inventoryFilter === 'out' && !item.isOutOfStock) return false;
+        }
+        
+        // Days of Supply filter
+        if (trendFilter !== 'all') {
+          const dos = item.daysOfSupply;
+          if (trendFilter === 'critical-dos' && (dos === '∞' || dos === 0 || dos >= 14)) return false;
+          if (trendFilter === 'low-dos' && (dos === '∞' || dos < 14 || dos >= 30)) return false;
+          if (trendFilter === 'healthy-dos' && (dos === '∞' || dos < 30 || dos >= 90)) return false;
+          if (trendFilter === 'high-dos' && (dos === '∞' || dos < 90)) return false;
+          if (trendFilter === 'infinite-dos' && dos !== '∞') return false;
+        }
+        
+        return true;
+      });
+      
+      renderSKUTrendsTable(filteredSKUData);
+      updateFilterStats();
+      updateFilterDescription();
+    }
+    
+    // Apply quick filters
+    function applyQuickFilter(type) {
+      if (type === 'restock') {
+        // Show items that need restocking (critical or low stock)
+        document.getElementById('revenueFilter').value = 'all';
+        document.getElementById('inventoryFilter').value = 'all';
+        document.getElementById('trendFilter').value = 'all';
+        
+        filteredSKUData = dashboardData.skuTrendsAnalysis.filter(item => 
+          item.isCriticalStock || item.isLowStock || item.isOutOfStock
+        );
+      } else if (type === 'clear') {
+        // Clear all filters
+        document.getElementById('revenueFilter').value = 'all';
+        document.getElementById('inventoryFilter').value = 'all';
+        document.getElementById('trendFilter').value = 'all';
+        filteredSKUData = [...dashboardData.skuTrendsAnalysis];
+      }
+      
+      renderSKUTrendsTable(filteredSKUData);
+      updateFilterStats();
+      updateFilterDescription();
+    }
+    
+    // Update filter statistics
+    function updateFilterStats() {
+      if (!filteredSKUData || filteredSKUData.length === 0) {
+        document.getElementById('showingCount').textContent = '0';
+        document.getElementById('totalRevenue').textContent = '$0';
+        document.getElementById('criticalCount').textContent = '0';
+        document.getElementById('avgDaysStock').textContent = '0';
+        return;
+      }
+      
+      // Calculate stats
+      const totalRevenue = filteredSKUData.reduce((sum, item) => sum + (item.revenue90 || 0), 0);
+      const criticalCount = filteredSKUData.filter(item => item.isCriticalStock).length;
+      const avgDaysStock = filteredSKUData.reduce((sum, item) => {
+        if (item.daysOfInventory && item.daysOfInventory < 999) {
+          return sum + item.daysOfInventory;
+        }
+        return sum;
+      }, 0) / filteredSKUData.filter(item => item.daysOfInventory && item.daysOfInventory < 999).length || 0;
+      
+      // Update display
+      document.getElementById('showingCount').textContent = filteredSKUData.length;
+      document.getElementById('totalRevenue').textContent = '$' + formatNumber(Math.round(totalRevenue));
+      document.getElementById('criticalCount').textContent = criticalCount;
+      document.getElementById('avgDaysStock').textContent = Math.round(avgDaysStock);
+    }
+    
+    // Update filter description
+    function updateFilterDescription() {
+      const revenueFilter = document.getElementById('revenueFilter').value;
+      const inventoryFilter = document.getElementById('inventoryFilter').value;
+      const trendFilter = document.getElementById('trendFilter').value;
+      
+      let description = 'Showing ';
+      const filters = [];
+      
+      if (revenueFilter !== 'all') {
+        const revenueText = document.getElementById('revenueFilter').options[document.getElementById('revenueFilter').selectedIndex].text;
+        filters.push(revenueText);
+      }
+      
+      if (inventoryFilter !== 'all') {
+        const inventoryText = document.getElementById('inventoryFilter').options[document.getElementById('inventoryFilter').selectedIndex].text;
+        filters.push(inventoryText);
+      }
+      
+      if (trendFilter !== 'all') {
+        const trendText = document.getElementById('trendFilter').options[document.getElementById('trendFilter').selectedIndex].text;
+        filters.push(trendText);
+      }
+      
+      if (filters.length === 0) {
+        description += 'all active FBA SKUs with sales in the last 365 days';
+      } else {
+        description += filters.join(', ');
+      }
+      
+      description += ` (${filteredSKUData.length} of ${dashboardData.skuTrendsAnalysis.length} SKUs)`;
+      
+      document.getElementById('filterDescription').textContent = description;
+    }
+
+    // Test sparkline rendering
+    function testSparkline() {
+      const testData = [10, 15, 12, 18];
+      const svg = createSparkline(testData, 110, 30, '#10b981');
+      console.log('Test sparkline SVG:', svg);
+      return svg;
+    }
+
+    // Populate Vendor Central View
+    function populateVendorCentralView() {
+      console.log('populateVendorCentralView called');
+
+      if (!dashboardData.vendorCentral || !dashboardData.vendorCentral.items) {
+        console.log('No Vendor Central data available');
+        document.getElementById('vendorCentralBody').innerHTML = '<tr><td colspan="9" class="text-center py-4 text-gray-500">No Vendor Central data available</td></tr>';
+        return;
+      }
+
+      const data = dashboardData.vendorCentral;
+      const summary = data.summary;
+      const alerts = data.alerts;
+
+      // Populate metadata if available
+      if (data.metadata && data.metadata.viewingRange && data.metadata.reportUpdated) {
+        document.getElementById('vendorMetadata').classList.remove('hidden');
+        document.getElementById('vcViewingRange').textContent = data.metadata.viewingRange;
+        document.getElementById('vcReportUpdated').textContent = data.metadata.reportUpdated;
+      }
+
+      // Update KPI cards
+      document.getElementById('vcTotalValue').textContent = '$' + formatNumber(summary.totalSellableValue);
+      document.getElementById('vcUnfilledOrders').textContent = summary.totalUnfilledOrders;
+      document.getElementById('vcUnfilledValue').textContent = '$' + formatNumber(summary.totalUnfilledValue) + ' potential revenue';
+      document.getElementById('vcAgedUnits').textContent = formatNumber(summary.totalAgedUnits);
+      document.getElementById('vcAvgSellThrough').textContent = summary.avgSellThrough.toFixed(1) + '%';
+
+      // Populate explanations and report
+      if (data.explanations) {
+        populateVendorExplanations(data.explanations);
+      }
+
+      // Populate alert sections
+      populateVendorAlerts('critical', alerts.critical, summary.criticalCount);
+      populateVendorAlerts('urgent', alerts.urgent, summary.urgentCount);
+      populateVendorAlerts('warning', alerts.warning, summary.warningCount);
+      populateVendorAlerts('processIssues', alerts.processIssues, summary.processIssueCount);
+
+      // Populate main table
+      const tbody = document.getElementById('vendorCentralBody');
+      tbody.innerHTML = data.items.map(item => {
+        const statusColors = {
+          'Critical': 'bg-red-100 text-red-800',
+          'Urgent': 'bg-orange-100 text-orange-800',
+          'Warning': 'bg-yellow-100 text-yellow-800',
+          'Healthy': 'bg-green-100 text-green-800'
+        };
+
+        const statusIcon = {
+          'Critical': 'fas fa-exclamation-circle',
+          'Urgent': 'fas fa-clock',
+          'Warning': 'fas fa-exclamation-triangle',
+          'Healthy': 'fas fa-check-circle'
+        };
+
+        return `
+        <tr class="hover:bg-gray-50">
+          <td class="py-2">
+            <span class="px-2 py-1 text-xs font-semibold rounded ${statusColors[item.status]}">
+              <i class="${statusIcon[item.status]}"></i> ${item.status}
+            </span>
+          </td>
+          <td class="py-2 font-mono text-xs">${item.asin}</td>
+          <td class="py-2">
+            <div class="text-sm text-gray-900" title="${item.title}">${item.title}</div>
+          </td>
+          <td class="py-2 text-center">${item.sellableUnits}</td>
+          <td class="py-2 text-center ${item.unfilledOrders > 0 ? 'font-bold text-red-600' : 'text-gray-600'}">${item.unfilledOrders}</td>
+          <td class="py-2 text-center text-blue-600">${item.openPOQuantity}</td>
+          <td class="py-2 text-center ${item.aged90Units > 0 ? 'text-yellow-600' : 'text-gray-600'}">${item.aged90Units}</td>
+          <td class="py-2 text-center">${item.daysOfSupply}</td>
+          <td class="py-2 text-center ${item.sellThrough < 20 ? 'text-red-600' : item.sellThrough < 40 ? 'text-yellow-600' : 'text-green-600'}">
+            ${item.sellThrough > 0 ? item.sellThrough.toFixed(1) + '%' : 'N/A'}
+          </td>
+        </tr>
+        `;
+      }).join('');
+    }
+
+    // Populate Vendor Alert Section
+    function populateVendorAlerts(type, alerts, count) {
+      const cardIds = {
+        'critical': 'criticalAlertsCard',
+        'urgent': 'urgentAlertsCard',
+        'warning': 'warningAlertsCard',
+        'processIssues': 'processIssuesCard'
+      };
+
+      const badgeIds = {
+        'critical': 'criticalBadge',
+        'urgent': 'urgentBadge',
+        'warning': 'warningBadge',
+        'processIssues': 'processIssueBadge'
+      };
+
+      const listIds = {
+        'critical': 'criticalAlertsList',
+        'urgent': 'urgentAlertsList',
+        'warning': 'warningAlertsList',
+        'processIssues': 'processIssuesList'
+      };
+
+      const card = document.getElementById(cardIds[type]);
+      const badge = document.getElementById(badgeIds[type]);
+      const list = document.getElementById(listIds[type]);
+
+      if (count === 0) {
+        card.classList.add('hidden');
+        return;
+      }
+
+      card.classList.remove('hidden');
+      badge.textContent = count;
+
+      // Start collapsed by default
+      const contentId = type === 'processIssues' ? 'processIssuesAlertsContent' : `${type}AlertsContent`;
+      const content = document.getElementById(contentId);
+      if (content) {
+        content.classList.add('hidden');
+      }
+
+      list.innerHTML = alerts.map(alert => `
+        <div class="bg-white p-3 rounded border border-gray-200">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <p class="font-semibold text-sm text-gray-900">${alert.asin}</p>
+              <p class="text-xs text-gray-600 mt-1">${alert.title}</p>
+              <p class="text-sm text-gray-700 mt-2">${alert.message}</p>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Toggle alert card expansion
+    // Toggle collapsible sections in Vendor Central
+    function toggleSection(sectionName) {
+      const contentId = `${sectionName}Content`;
+      const iconId = `${sectionName}ToggleIcon`;
+
+      const content = document.getElementById(contentId);
+      const icon = document.getElementById(iconId);
+
+      if (content && icon) {
+        const isHidden = content.classList.contains('hidden');
+        if (isHidden) {
+          content.classList.remove('hidden');
+          icon.classList.remove('fa-chevron-down');
+          icon.classList.add('fa-chevron-up');
+        } else {
+          content.classList.add('hidden');
+          icon.classList.remove('fa-chevron-up');
+          icon.classList.add('fa-chevron-down');
+        }
+      }
+    }
+
+    // Populate Vendor Central explanations and recommendations
+    function populateVendorExplanations(explanations) {
+      // Populate overall report
+      if (explanations.overallReport) {
+        document.getElementById('overallReportText').textContent = explanations.overallReport;
+      }
+
+      // Populate recommendations
+      if (explanations.actionableRecommendations) {
+        const container = document.getElementById('recommendationsContainer');
+        container.innerHTML = explanations.actionableRecommendations.map(rec => {
+          const priorityColors = {
+            1: 'bg-red-100 border-red-400 text-red-900',
+            2: 'bg-orange-100 border-orange-400 text-orange-900',
+            3: 'bg-yellow-100 border-yellow-400 text-yellow-900',
+            4: 'bg-blue-100 border-blue-400 text-blue-900',
+            5: 'bg-purple-100 border-purple-400 text-purple-900'
+          };
+
+          const priorityIcons = {
+            1: 'fa-exclamation-circle',
+            2: 'fa-clock',
+            3: 'fa-exclamation-triangle',
+            4: 'fa-tools',
+            5: 'fa-lightbulb'
+          };
+
+          return `
+            <div class="border-2 ${priorityColors[rec.priority]} rounded-lg p-4">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <i class="fas ${priorityIcons[rec.priority]} text-xl mr-3"></i>
+                </div>
+                <div class="flex-grow">
+                  <h4 class="font-semibold text-md mb-1">
+                    Priority ${rec.priority}: ${rec.category}
+                  </h4>
+                  <p class="font-medium mb-2">${rec.action}</p>
+                  <p class="text-sm mb-2">${rec.details}</p>
+                  <ul class="text-sm space-y-1 ml-4">
+                    ${rec.items.map(item => `<li class="list-disc">${item}</li>`).join('')}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Populate status definitions
+      if (explanations.statusDefinitions) {
+        const definitions = explanations.statusDefinitions;
+        const container = document.getElementById('statusDefinitions');
+
+        container.innerHTML = Object.entries(definitions).map(([key, def]) => {
+          const colors = {
+            critical: 'border-red-400 bg-red-50',
+            urgent: 'border-orange-400 bg-orange-50',
+            warning: 'border-yellow-400 bg-yellow-50',
+            healthy: 'border-green-400 bg-green-50'
+          };
+
+          return `
+            <div class="border-2 ${colors[key]} rounded-lg p-4">
+              <h4 class="font-bold text-lg mb-2">${def.title}</h4>
+              <p class="font-semibold text-sm mb-2">${def.meaning}</p>
+              <p class="text-sm mb-3">${def.description}</p>
+
+              <div class="mb-3">
+                <p class="font-semibold text-sm mb-1">How to Fix:</p>
+                <ul class="text-xs space-y-1 ml-4">
+                  ${def.howToFix.map(fix => `<li class="list-disc">${fix}</li>`).join('')}
+                </ul>
+              </div>
+
+              <div class="text-xs">
+                <span class="font-semibold">Impact:</span> ${def.impact}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function toggleAlertCard(type) {
+      const contentId = type === 'processIssues' ? 'processIssuesAlertsContent' : `${type}AlertsContent`;
+      const iconId = `${type}ToggleIcon`;
+
+      const content = document.getElementById(contentId);
+      const icon = document.getElementById(iconId);
+
+      if (content && icon) {
+        const isHidden = content.classList.contains('hidden');
+        if (isHidden) {
+          content.classList.remove('hidden');
+          icon.classList.remove('fa-chevron-down');
+          icon.classList.add('fa-chevron-up');
+        } else {
+          content.classList.add('hidden');
+          icon.classList.remove('fa-chevron-up');
+          icon.classList.add('fa-chevron-down');
+        }
+      }
+    }
+
+    // Table sorting functionality
+    let sortState = {};
+    
+    function sortTable(tableId, columnIndex, dataType = 'string') {
+      const table = document.getElementById(tableId);
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      
+      // Skip if no data rows
+      if (rows.length === 0 || rows[0].cells[0].colSpan > 1) return;
+      
+      // Initialize sort state for this table if needed
+      if (!sortState[tableId]) {
+        sortState[tableId] = {};
+      }
+      
+      // Toggle sort direction
+      const currentDirection = sortState[tableId][columnIndex] || 'asc';
+      const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+      sortState[tableId][columnIndex] = newDirection;
+      
+      // Sort rows
+      rows.sort((a, b) => {
+        let aCell = a.cells[columnIndex];
+        let bCell = b.cells[columnIndex];
+        
+        // Extract text content, handling links
+        let aValue = aCell.querySelector('a') ? aCell.querySelector('a').textContent.trim() : aCell.textContent.trim();
+        let bValue = bCell.querySelector('a') ? bCell.querySelector('a').textContent.trim() : bCell.textContent.trim();
+        
+        // Remove badges like "TOP 20%" from SKU column
+        aValue = aValue.replace(/TOP 20%/g, '').trim();
+        bValue = bValue.replace(/TOP 20%/g, '').trim();
+        
+        // Handle different data types
+        if (dataType === 'number') {
+          aValue = parseFloat(aValue.replace(/[$,%\/day]/g, '')) || 0;
+          bValue = parseFloat(bValue.replace(/[$,%\/day]/g, '')) || 0;
+        } else if (dataType === 'currency') {
+          aValue = parseFloat(aValue.replace(/[$,\/day]/g, '')) || 0;
+          bValue = parseFloat(bValue.replace(/[$,\/day]/g, '')) || 0;
+        }
+        
+        // Compare values
+        let comparison = 0;
+        if (aValue < bValue) comparison = -1;
+        else if (aValue > bValue) comparison = 1;
+        
+        // Apply sort direction
+        return newDirection === 'asc' ? comparison : -comparison;
+      });
+      
+      // Clear tbody and re-append sorted rows
+      tbody.innerHTML = '';
+      rows.forEach(row => tbody.appendChild(row));
+      
+      // Update header indicators
+      const headers = table.querySelectorAll('thead th');
+      headers.forEach((header, index) => {
+        header.classList.remove('sort-asc', 'sort-desc');
+        if (index === columnIndex) {
+          header.classList.add(newDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+      });
+    }
+    
+    // ===== HOLIDAY PLANNING FUNCTIONS =====
+    let holidayData = null;
+    let currentGrowthFactor = 1.0;
+    let holidayFilter = 'all';
+    let debugMode = false;
+    let debugLogs = [];
+
+    // ===== DEBUG MODE FUNCTIONS =====
+    
+    function toggleDebugMode() {
+      debugMode = !debugMode;
+      const panel = document.getElementById('debugModePanel');
+      if (debugMode) {
+        panel.classList.remove('hidden');
+        debugLog('Debug mode enabled');
+        updateDebugStatus();
+      } else {
+        panel.classList.add('hidden');
+        debugLog('Debug mode disabled');
+      }
+    }
+    
+    function debugLog(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = `[${timestamp}] ${message}`;
+      debugLogs.push(logEntry);
+      
+      if (debugMode) {
+        const output = document.getElementById('debugOutput');
+        const div = document.createElement('div');
+        div.className = type === 'error' ? 'text-red-400' : type === 'warning' ? 'text-yellow-400' : 'text-green-400';
+        div.textContent = logEntry;
+        output.appendChild(div);
+        output.scrollTop = output.scrollHeight;
+      }
+      
+      console.log(`[DEBUG] ${message}`);
+    }
+    
+    function updateDebugStatus() {
+      if (debugMode) {
+        document.getElementById('debugDataLoaded').textContent = holidayData ? 'true' : 'false';
+        document.getElementById('debugDeliveryMethod').textContent = holidayData?.deliveryMethod || 'unknown';
+        document.getElementById('debugLastUpdate').textContent = holidayData?.timestamp || 'never';
+        document.getElementById('debugSkuCount').textContent = holidayData?.results?.length || holidayData?.pagination?.totalResults || '-';
+        
+        if (holidayData) {
+          const dataSize = JSON.stringify(holidayData).length;
+          document.getElementById('debugDataSize').textContent = `${(dataSize / 1024).toFixed(2)} KB`;
+        }
+      }
+    }
+    
+    function clearDebugLogs() {
+      debugLogs = [];
+      const output = document.getElementById('debugOutput');
+      output.innerHTML = '<div class="text-gray-500">Debug logs cleared...</div>';
+    }
+    
+    function runAutomatedTests() {
+      debugLog('Starting automated test suite...', 'info');
+      const startTime = Date.now();
+      
+      google.script.run
+        .withSuccessHandler(function(testResults) {
+          const duration = Date.now() - startTime;
+          debugLog(`Test suite completed in ${duration}ms`, 'info');
+          debugLog(`Results: ${testResults.summary.passed} passed, ${testResults.summary.failed} failed, ${testResults.summary.warnings} warnings`);
+          
+          // Display detailed results
+          testResults.tests.forEach(test => {
+            const status = test.status === 'pass' ? 'info' : test.status === 'fail' ? 'error' : 'warning';
+            debugLog(`${test.name}: ${test.status.toUpperCase()}`, status);
+            if (test.details && Object.keys(test.details).length > 0) {
+              debugLog(`  Details: ${JSON.stringify(test.details)}`, status);
+            }
+          });
+          
+          // Update issues panel
+          updateDebugIssues(testResults);
+          updateDebugStatus();
+          
+          document.getElementById('debugLoadTime').textContent = `${testResults.executionTimeSeconds}s`;
+        })
+        .withFailureHandler(function(error) {
+          debugLog(`Test suite failed: ${error}`, 'error');
+        })
+        .runAutomatedHolidayTests(clientId);
+    }
+    
+    function testDataSize() {
+      debugLog('Testing data size and compatibility...', 'info');
+      
+      // Test the original function to see if it returns null
+      google.script.run
+        .withSuccessHandler(function(data) {
+          if (data && data.results) {
+            const dataSize = JSON.stringify(data).length;
+            debugLog(`Data size test: ${(dataSize / 1024).toFixed(2)} KB with ${data.results.length} SKUs`, 'info');
+            debugLog('google.script.run compatibility: SUCCESS', 'info');
+          } else {
+            debugLog('google.script.run returned null - data too large!', 'error');
+            debugLog('Recommendation: Use chunked delivery system', 'warning');
+          }
+          updateDebugStatus();
+        })
+        .withFailureHandler(function(error) {
+          debugLog(`Data size test failed: ${error}`, 'error');
+        })
+        .getHolidayForecast(clientId, currentGrowthFactor);
+    }
+    
+    function testChunkedDelivery() {
+      debugLog('Testing chunked delivery system...', 'info');
+      
+      // First get metadata
+      google.script.run
+        .withSuccessHandler(function(metadata) {
+          debugLog(`Metadata received: ${metadata.pagination?.totalResults || 0} total SKUs, ${metadata.pagination?.totalChunks || 0} chunks`, 'info');
+          
+          if (metadata.pagination?.totalChunks > 0) {
+            // Test loading first chunk
+            google.script.run
+              .withSuccessHandler(function(chunk) {
+                debugLog(`First chunk received: ${chunk.results?.length || 0} SKUs`, 'info');
+                debugLog(`Chunked delivery test: SUCCESS`, 'info');
+                updateDebugStatus();
+              })
+              .withFailureHandler(function(error) {
+                debugLog(`Chunk load failed: ${error}`, 'error');
+              })
+              .getHolidayForecastChunked(clientId, currentGrowthFactor, 0, 25);
+          } else {
+            debugLog('No chunks available - data may be small enough for single delivery', 'warning');
+          }
+        })
+        .withFailureHandler(function(error) {
+          debugLog(`Metadata fetch failed: ${error}`, 'error');
+        })
+        .getHolidayForecastMetadata(clientId, currentGrowthFactor);
+    }
+    
+    function updateDebugIssues(testResults) {
+      const issuesDiv = document.getElementById('debugIssues');
+      const failedTests = testResults.tests.filter(t => t.status === 'fail');
+      const warnings = testResults.tests.filter(t => t.status === 'warning');
+      
+      if (failedTests.length === 0 && warnings.length === 0) {
+        issuesDiv.innerHTML = '<div class="text-green-600">No issues detected</div>';
+      } else {
+        let issuesHtml = '';
+        failedTests.forEach(test => {
+          issuesHtml += `<div class="text-red-600 text-xs mb-1">ERROR: ${test.name}</div>`;
+        });
+        warnings.forEach(test => {
+          issuesHtml += `<div class="text-yellow-600 text-xs mb-1">WARNING: ${test.name}</div>`;
+        });
+        issuesDiv.innerHTML = issuesHtml;
+      }
+    }
+
+    // Download holiday forecast as CSV
+    function downloadHolidayForecastCSV(filename) {
+      if (!holidayData || !holidayData.results) return;
+      
+      let csv = 'Risk Score,SKU,Title,Current Inventory,Inbound,2024 Total,2025 Forecast,Peak Month,Aug 2024,Sep 2024,Oct 2024,Nov 2024,Dec 2024,Next Order Date,Order Quantity\n';
+      
+      holidayData.results.forEach(item => {
+        const nextOrder = item.orderRecommendations.length > 0 ? item.orderRecommendations[0] : null;
+        const orderDate = nextOrder ? new Date(nextOrder.orderDate).toLocaleDateString() : 'N/A';
+        const orderQty = nextOrder ? nextOrder.orderQuantity : 0;
+        
+        csv += [
+          item.riskScore,
+          `"${item.sku}"`,
+          `"${item.title.replace(/"/g, '""')}"`,
+          item.currentInventory.currentOnHand,
+          item.currentInventory.inbound,
+          item.historical.totalUnits,
+          item.forecast.total,
+          item.historical.peakMonth,
+          item.historical.augUnits,
+          item.historical.sepUnits,
+          item.historical.octUnits,
+          item.historical.novUnits,
+          item.historical.decUnits,
+          orderDate,
+          orderQty
+        ].join(',') + '\n';
+      });
+      
+      // Create download
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename + '_' + new Date().toISOString().split('T')[0] + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
+
+    // Check if holiday planning should be visible
+    function checkHolidayPlanningVisibility() {
+      const today = new Date();
+      const month = today.getMonth(); // 0-11
+      const year = today.getFullYear();
+      
+      // Always show the feature - it dynamically adjusts target dates
+      // The feature is useful year-round for inventory planning
+      document.getElementById('holidayPlanningCard').classList.remove('hidden');
+      document.querySelectorAll('.holiday-planning-desc').forEach(el => el.classList.remove('hidden'));
+      
+      // Update the description based on time of year
+      const descElements = document.querySelectorAll('.holiday-planning-desc');
+      descElements.forEach(el => {
+        if (month < 7) {
+          el.textContent = 'Plan inventory for Q4 holiday season';
+        } else if (month >= 7 && month <= 9) {
+          el.textContent = 'Optimize inventory for upcoming holidays';
+        } else if (month === 10) {
+          el.textContent = 'Final holiday inventory adjustments';
+        } else if (month === 11) {
+          el.textContent = 'Monitor holiday performance & plan for next year';
+        }
+      });
+    }
+
+    // Load holiday forecast data with automatic fallback to chunked delivery
+    function loadHolidayForecast() {
+      console.log('Loading holiday forecast for client:', clientId);
+      
+      // Show loading state
+      const container = document.getElementById('holidayPlanningContent');
+      if (container) {
+        container.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-4xl text-gray-400"></i><p class="mt-4 text-gray-600">Loading holiday summary...</p></div>';
+      }
+      
+      // Use simple google.script.run call - returns summary only
+      google.script.run
+        .withSuccessHandler(function(data) {
+          console.log('Holiday forecast data received:', data);
+          
+          if (data && data.summary) {
+            // Display the simple summary view
+            displaySimpleHolidayView(data.summary);
+          } else if (data && data.error) {
+            showHolidayError(data.error);
+          } else {
+            showHolidayError('No holiday data available');
+          }
+        })
+        .withFailureHandler(function(error) {
+          console.error('Error loading holiday forecast:', error);
+          showHolidayError('Failed to load holiday data');
+        })
+        .getHolidayForecast(clientId, currentGrowthFactor);
+    }
+    
+    // Load holiday forecast using chunked delivery
+    function loadHolidayForecastChunked(metadata = null) {
+      debugLog('Loading holiday forecast using chunked delivery...');
+      const startTime = Date.now();
+      
+      let metadataPromise;
+      if (metadata) {
+        metadataPromise = Promise.resolve(metadata);
+      } else {
+        // Get metadata first
+        metadataPromise = fetch(`${window.location.href.split('?')[0]}?action=getHolidayForecastMeta&client=${clientId}&growthFactor=${currentGrowthFactor}`)
+          .then(response => response.json());
+      }
+      
+      metadataPromise
+        .then(meta => {
+          if (meta.error) {
+            throw new Error(meta.error);
+          }
+          
+          debugLog(`Loading ${meta.pagination?.totalResults || 0} SKUs in ${meta.pagination?.totalChunks || 0} chunks`);
+          
+          if (!meta.pagination || meta.pagination.totalChunks === 0) {
+            throw new Error('No data available');
+          }
+          
+          // Load all chunks
+          const chunkPromises = [];
+          for (let i = 0; i < meta.pagination.totalChunks; i++) {
+            const chunkPromise = fetch(`${window.location.href.split('?')[0]}?action=getHolidayForecastChunk&client=${clientId}&growthFactor=${currentGrowthFactor}&chunkIndex=${i}&chunkSize=25`)
+              .then(response => response.json());
+            chunkPromises.push(chunkPromise);
+          }
+          
+          return Promise.all([meta, ...chunkPromises]);
+        })
+        .then(([meta, ...chunks]) => {
+          const loadTime = Date.now() - startTime;
+          debugLog(`All chunks loaded in ${loadTime}ms`);
+          
+          // Combine all chunks
+          const combinedResults = [];
+          chunks.forEach(chunk => {
+            if (chunk.results) {
+              combinedResults.push(...chunk.results);
+            }
+          });
+          
+          // Create final data structure
+          const combinedData = {
+            configured: meta.configured,
+            growthFactor: meta.growthFactor,
+            summary: chunks[0]?.summary || meta.summary,
+            results: combinedResults,
+            deliveryMethod: 'chunked',
+            pagination: meta.pagination,
+            timestamp: new Date().toISOString()
+          };
+          
+          debugLog(`Successfully loaded ${combinedResults.length} SKUs via chunked delivery`);
+          holidayData = combinedData;
+          updateHolidayPlanningView(combinedData);
+          updateDebugStatus();
+        })
+        .catch(error => {
+          const loadTime = Date.now() - startTime;
+          debugLog(`Chunked delivery failed after ${loadTime}ms: ${error.message}`, 'error');
+          console.error('Error loading holiday forecast via chunks:', error);
+          updateHolidayConfigStatus(false);
+          document.getElementById('holidayStatus').textContent = 'Error Loading';
+        });
+    }
+
+    // Update growth factor from slider
+    function updateGrowthFactor() {
+      const slider = document.getElementById('growthSlider');
+      const value = document.getElementById('growthValue');
+      currentGrowthFactor = 1 + (slider.value / 100);
+      value.textContent = slider.value + '%';
+    }
+
+    // Refresh holiday data with new growth factor
+    function refreshHolidayData() {
+      loadHolidayForecast();
+    }
+    
+    // Show holiday error message
+    function showHolidayError(message) {
+      const container = document.getElementById('holidayPlanningContent');
+      if (container) {
+        container.innerHTML = `<div class="text-center py-8 text-red-600"><i class="fas fa-exclamation-circle text-4xl"></i><p class="mt-4">${message}</p></div>`;
+      }
+    }
+    
+    // Display simple holiday view
+    function displaySimpleHolidayView(summary) {
+      const container = document.getElementById('holidayPlanningContent');
+      if (!container) return;
+      
+      const formatCurrency = (value) => '$' + value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      const formatNumber = (value) => value.toLocaleString('en-US');
+      
+      let html = `
+        <!-- How to Use This Tool -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+          <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle text-blue-600 text-xl mt-1"></i>
+            <div class="flex-1">
+              <h3 class="font-semibold text-gray-900 mb-2">Am I Ready for the Holidays?</h3>
+              <div class="text-sm text-gray-700 space-y-2">
+                <p class="font-medium">This tool answers one simple question: Do you have enough inventory at Amazon to cover Nov-Dec sales?</p>
+                
+                <div class="bg-white border border-gray-300 rounded p-3 mt-2">
+                  <p class="font-medium mb-1">How it works:</p>
+                  <ul class="text-sm space-y-1 ml-4">
+                    <li>• Shows what you sold last Nov-Dec</li>
+                    <li>• Shows what you have at Amazon today</li>
+                    <li>• Tells you if you're "On Track" or need to send more</li>
+                    <li>• If you need more, shows exactly how much to send</li>
+                  </ul>
+                </div>
+                
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mt-3">
+                  <p class="font-medium text-gray-800 mb-1">🚨 Key Reminders:</p>
+                  <ul class="text-sm space-y-1 ml-4">
+                    <li>• <strong>Ship by October 15th</strong> to ensure arrival by Oct 31</li>
+                    <li>• Add 20-30% extra for safety stock</li>
+                    <li>• Check your restock limits before creating shipments</li>
+                    <li>• Only shows products that sold last Nov-Dec</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Simple Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900">Holiday Inventory Status</h3>
+              <p class="text-sm text-gray-600 mt-1">Comparing current stock to last year's Nov-Dec sales</p>
+            </div>
+            <div class="flex items-center gap-4">
+              <button onclick="exportHolidayData()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <i class="fas fa-download mr-2"></i>Export
+              </button>
+              <div class="hidden">
+                <input type="range" id="growthSlider" min="0" max="0" value="0" class="w-32">
+                <span id="growthValue" class="hidden">0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Simple Summary -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+          <div class="bg-white rounded-lg shadow-sm p-6">
+            <h4 class="text-sm font-medium text-gray-600 mb-1">Products Analyzed</h4>
+            <p class="text-2xl font-bold text-gray-900">${formatNumber(summary.totalProducts)}</p>
+            <p class="text-xs text-gray-500 mt-1">From your top performers</p>
+          </div>
+          <div class="bg-white rounded-lg shadow-sm p-6">
+            <h4 class="text-sm font-medium text-gray-600 mb-1">Need to Ship</h4>
+            <p class="text-2xl font-bold ${summary.criticalCount > 0 ? 'text-red-600' : 'text-green-600'}">
+              ${summary.criticalCount > 0 ? summary.criticalCount : 'None'}
+            </p>
+            <p class="text-xs text-gray-500 mt-1">${summary.criticalCount > 0 ? 'Products need inventory' : 'All products on track'}</p>
+          </div>
+          <div class="bg-white rounded-lg shadow-sm p-6">
+            <h4 class="text-sm font-medium text-gray-600 mb-1">Ship By</h4>
+            <p class="text-2xl font-bold text-gray-900">Oct 15</p>
+            <p class="text-xs text-gray-500 mt-1">To arrive by Oct 31</p>
+          </div>
+        </div>
+        
+        <!-- Inventory Planning Table -->
+        <div class="bg-white rounded-lg shadow-sm">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex justify-between items-center mb-4">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">Holiday Inventory Planning</h3>
+                <p class="text-sm text-gray-600">Coverage status and weekly send recommendations${summary.targetDescription ? ` - Target: ${summary.targetDescription}` : ''}</p>
+              </div>
+              <div class="flex gap-4 text-sm">
+                <span class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-1"></span>Critical (&lt;30 days)</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-yellow-500 rounded-full mr-1"></span>Warning (30-50 days)</span>
+                <span class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded-full mr-1"></span>Good (50+ days)</span>
+              </div>
+            </div>
+            <!-- Filters -->
+            <div class="flex gap-2">
+              <button onclick="filterHolidayTable('all')" class="holiday-filter-btn px-3 py-1 text-sm rounded-lg bg-blue-600 text-white" data-filter="all">All Items</button>
+              <button onclick="filterHolidayTable('critical')" class="holiday-filter-btn px-3 py-1 text-sm rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="critical">Critical Only</button>
+              <button onclick="filterHolidayTable('warning')" class="holiday-filter-btn px-3 py-1 text-sm rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="warning">Warning Only</button>
+              <button onclick="filterHolidayTable('needs-order')" class="holiday-filter-btn px-3 py-1 text-sm rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="needs-order">Needs Order</button>
+              <button onclick="filterHolidayTable('good')" class="holiday-filter-btn px-3 py-1 text-sm rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="good">Good Status</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-gray-200 bg-gray-50">
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortHolidayTable('title')">
+                    Product <i class="fas fa-sort text-gray-400 ml-1"></i>
+                  </th>
+                  <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortHolidayTable('inventory')">
+                    Stock at<br>Amazon <i class="fas fa-sort text-gray-400 ml-1"></i>
+                  </th>
+                  <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortHolidayTable('units2024')">
+                    Last Year<br>Nov-Dec <i class="fas fa-sort text-gray-400 ml-1"></i>
+                  </th>
+                  <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortHolidayTable('unitsNeeded')">
+                    Still Need<br>to Send <i class="fas fa-sort text-gray-400 ml-1"></i>
+                  </th>
+                  <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="holidayPlanningTableBody">
+      `;
+      
+      // Check if we have any products to show
+      if (!summary.topProducts || summary.topProducts.length === 0) {
+        html += `
+            </tbody>
+          </table>
+        </div>
+        <div class="p-6 text-center text-gray-500">
+          <i class="fas fa-info-circle text-4xl mb-4"></i>
+          <p class="font-medium">No holiday planning data available</p>
+          <p class="text-sm mt-2">This could be because:</p>
+          <ul class="text-sm mt-2 space-y-1">
+            <li>• No products had sales in Nov-Dec 2024</li>
+            <li>• The holiday data sheet is not properly configured</li>
+            <li>• ASINs from 2024 don't match current inventory</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+        `;
+        container.innerHTML = html;
+        return;
+      }
+      
+      // Store the products globally for sorting/filtering
+      window.holidayProducts = summary.topProducts || [];
+      window.holidayProductsOriginal = [...(summary.topProducts || [])];
+      window.holidayFilter = 'all';
+      window.holidaySortField = null;
+      window.holidaySortAsc = true;
+      window.holidaySearchTerm = '';
+      
+      if (summary.topProducts && summary.topProducts.length > 0) {
+        summary.topProducts.forEach((product, index) => {
+          const dailyVelocity = product.units2024 / 61;
+          const statusColor = product.status === 'critical' ? 'bg-red-100' : 
+                            product.status === 'warning' ? 'bg-yellow-50' : 
+                            product.status === 'good' ? 'bg-green-50' : '';
+          const statusIcon = product.status === 'critical' ? '🔴' : 
+                           product.status === 'warning' ? '🟡' : 
+                           product.status === 'good' ? '🟢' : '⚪';
+          
+          html += `
+            <tr class="border-b border-gray-100 hover:bg-gray-50 ${statusColor}">
+              <td class="px-4 py-3">
+                <div class="text-sm text-gray-900">${product.title}</div>
+                <div class="text-xs text-gray-500">SKU: ${product.sku} | ASIN: ${product.asin}</div>
+              </td>
+              <td class="px-4 py-3 text-center">
+                <div class="text-sm font-medium">${formatNumber(product.currentInventory)}</div>
+              </td>
+              <td class="px-4 py-3 text-center">
+                <div class="text-sm font-medium">${formatNumber(product.units2024)}</div>
+              </td>
+              <td class="px-4 py-3 text-center">
+                <div class="text-sm font-medium ${product.unitsNeeded > 0 ? 'text-red-600' : 'text-green-600'}">
+                  ${product.unitsNeeded > 0 ? formatNumber(product.unitsNeeded) : '0'}
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center">
+                ${product.unitsNeeded > 0 ? 
+                  '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Need to Ship</span>' : 
+                  '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">On Track ✓</span>'
+                }
+              </td>
+            </tr>
+          `;
+        });
+      }
+      
+      html += `
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="mt-6 bg-gray-50 rounded-lg p-4">
+          <h4 class="font-semibold text-gray-900 mb-2">📋 What to Do:</h4>
+          <ol class="text-sm text-gray-700 space-y-2 ml-4">
+            <li><strong>1. Look for "Need to Ship" status</strong> - These products need inventory sent to Amazon</li>
+            <li><strong>2. Check the "Still Need to Send" column</strong> - This is how many units to ship</li>
+            <li><strong>3. Ship by October 15th</strong> - To ensure arrival at Amazon by October 31st</li>
+            <li><strong>4. Add 20-30% extra</strong> as safety stock for unexpected demand</li>
+          </ol>
+          
+          <div class="mt-4 p-3 bg-white rounded border border-gray-200">
+            <p class="text-xs text-gray-600">
+              <strong>Simple Math:</strong> We compared what you sold last Nov-Dec to what you have at Amazon today.<br>
+              If you need more to match last year's sales, it shows "Need to Ship" with the exact quantity.
+            </p>
+          </div>
+        </div>
+      `;
+      
+      container.innerHTML = html;
+      
+      // Apply initial display
+      displayHolidayProducts();
+    }
+    
+    // Display holiday products with current filter and sort
+    function displayHolidayProducts() {
+      const tbody = document.getElementById('holidayPlanningTableBody');
+      if (!tbody || !window.holidayProducts) return;
+      
+      let products = [...window.holidayProducts];
+      
+      // Apply filter
+      if (window.holidayFilter !== 'all') {
+        products = products.filter(product => {
+          switch (window.holidayFilter) {
+            case 'critical':
+              return product.status === 'critical';
+            case 'warning':
+              return product.status === 'warning';
+            case 'good':
+              return product.status === 'good';
+            case 'needs-order':
+              return product.unitsNeeded > 0;
+            default:
+              return true;
+          }
+        });
+      }
+      
+      // Apply sort
+      if (window.holidaySortField) {
+        products.sort((a, b) => {
+          let aVal, bVal;
+          switch (window.holidaySortField) {
+            case 'title':
+              aVal = a.title.toLowerCase();
+              bVal = b.title.toLowerCase();
+              break;
+            case 'inventory':
+              aVal = a.currentInventory;
+              bVal = b.currentInventory;
+              break;
+            case 'coverage':
+              aVal = a.coverage;
+              bVal = b.coverage;
+              break;
+            case 'velocity':
+              aVal = a.units2024 / 61;
+              bVal = b.units2024 / 61;
+              break;
+            case 'unitsNeeded':
+              aVal = a.unitsNeeded;
+              bVal = b.unitsNeeded;
+              break;
+            case 'weeklyRecommendation':
+              aVal = a.weeklyRecommendation;
+              bVal = b.weeklyRecommendation;
+              break;
+            default:
+              return 0;
+          }
+          
+          if (aVal < bVal) return window.holidaySortAsc ? -1 : 1;
+          if (aVal > bVal) return window.holidaySortAsc ? 1 : -1;
+          return 0;
+        });
+      }
+      
+      // Clear and rebuild tbody
+      tbody.innerHTML = '';
+      
+      if (products.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">No products match the current filter</td></tr>`;
+        return;
+      }
+      
+      const formatNumber = (value) => value.toLocaleString('en-US');
+      
+      // Update product count
+      const countElement = document.getElementById('holidayProductCount');
+      if (countElement) {
+        countElement.textContent = `${products.length} of ${window.holidayProductsOriginal.length} products`;
+      }
+      
+      products.forEach((product, index) => {
+        const dailyVelocity = product.units2024 / 61;
+        const statusColor = product.status === 'critical' ? 'bg-red-100' : 
+                          product.status === 'warning' ? 'bg-yellow-50' : 
+                          product.status === 'good' ? 'bg-green-50' : '';
+        const statusIcon = product.status === 'critical' ? '🔴' : 
+                         product.status === 'warning' ? '🟡' : 
+                         product.status === 'good' ? '🟢' : '⚪';
+        
+        const row = `
+          <tr class="border-b border-gray-100 hover:bg-gray-50 ${statusColor}">
+            <td class="px-4 py-3">
+              <div class="text-sm text-gray-900">${product.title}</div>
+              <div class="text-xs text-gray-500">SKU: ${product.sku} | ASIN: ${product.asin}</div>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <div class="text-sm font-medium">${formatNumber(product.currentInventory)}</div>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <div class="text-sm font-medium">${formatNumber(product.units2024)}</div>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <div class="text-sm font-medium ${product.unitsNeeded > 0 ? 'text-red-600' : 'text-green-600'}">
+                ${product.unitsNeeded > 0 ? formatNumber(product.unitsNeeded) : '0'}
+              </div>
+            </td>
+            <td class="px-4 py-3 text-center">
+              ${product.unitsNeeded > 0 ? 
+                '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Need to Ship</span>' : 
+                '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">On Track ✓</span>'
+              }
+            </td>
+          </tr>
+        `;
+        tbody.innerHTML += row;
+      });
+    }
+    
+    // Filter holiday table
+    function filterHolidayTable(filter) {
+      window.holidayFilter = filter;
+      
+      // Update button states
+      document.querySelectorAll('.holiday-filter-btn').forEach(btn => {
+        if (btn.dataset.filter === filter) {
+          btn.className = 'holiday-filter-btn px-3 py-1 text-sm rounded-lg bg-blue-600 text-white';
+        } else {
+          btn.className = 'holiday-filter-btn px-3 py-1 text-sm rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300';
+        }
+      });
+      
+      displayHolidayProducts();
+    }
+    
+    // Sort holiday table
+    function sortHolidayTable(field) {
+      if (window.holidaySortField === field) {
+        window.holidaySortAsc = !window.holidaySortAsc;
+      } else {
+        window.holidaySortField = field;
+        window.holidaySortAsc = true;
+      }
+      
+      displayHolidayProducts();
+    }
+    
+    // Search holiday table
+    function searchHolidayTable() {
+      const searchInput = document.getElementById('holidaySearchInput');
+      window.holidaySearchTerm = searchInput ? searchInput.value : '';
+      displayHolidayProducts();
+    }
+    
+    // Export holiday data to CSV
+    function exportHolidayData() {
+      if (!window.holidayProducts || window.holidayProducts.length === 0) {
+        alert('No data to export');
+        return;
+      }
+      
+      // Prepare CSV data
+      const headers = ['SKU', 'ASIN', 'Product Title', 'Stock at Amazon', 'Last Year Nov-Dec', 
+                       'Still Need to Send', 'Status'];
+      
+      const rows = window.holidayProducts.map(product => {
+        return [
+          product.sku,
+          product.asin,
+          product.title,
+          product.currentInventory,
+          product.units2024,
+          product.unitsNeeded,
+          product.unitsNeeded > 0 ? 'Need to Ship' : 'On Track'
+        ];
+      });
+      
+      // Create CSV content
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+      
+      // Download file
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `holiday_inventory_planning_${clientId}_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
+
+    // Update holiday planning view
+    function updateHolidayPlanningView(data) {
+      console.log('updateHolidayPlanningView called with:', data);
+      
+      if (!data || data.error) {
+        console.error('Holiday data error:', data);
+        updateHolidayConfigStatus(false);
+        document.getElementById('holidayStatus').textContent = 'Error Loading';
+        return;
+      }
+      
+      if (!data.configured) {
+        updateHolidayConfigStatus(false);
+        document.getElementById('holidayStatus').textContent = 'Not Configured';
+        return;
+      }
+
+      updateHolidayConfigStatus(true);
+      updateHolidaySummaryCards(data.summary);
+      
+      // Update dashboard card
+      const statusText = data.summary.criticalSkus > 0 
+        ? `${data.summary.criticalSkus} Critical`
+        : 'Ready';
+      document.getElementById('holidayStatus').textContent = statusText;
+    }
+
+    // Update configuration status
+    function updateHolidayConfigStatus(configured) {
+      const statusDiv = document.getElementById('holidayConfigStatus');
+      
+      if (!configured) {
+        statusDiv.innerHTML = `
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-info-circle text-yellow-600 text-xl"></i>
+              <div>
+                <h3 class="font-semibold text-gray-900">Holiday Data Not Configured</h3>
+                <p class="text-gray-600 text-sm mt-1">
+                  To use this feature, add a "holiday_data_sheet_url" to your client configuration sheet.
+                  The sheet should contain tabs named Aug, Sep, Oct, Nov, Dec with 2024 sales data.
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        statusDiv.innerHTML = '';
+      }
+    }
+
+    // Update summary cards
+    function updateHolidaySummaryCards(summary) {
+      // Summary cards removed - using new inventory planning view
+    }
+
+
+
+    // Add holiday planning to view update
+    const originalShowView = showView;
+    showView = function(viewName) {
+      originalShowView(viewName);
+      
+      if (viewName === 'holidayPlanning' && !holidayData) {
+        loadHolidayForecast();
+      }
+    };
+
+    // Initialize on load
+    window.onload = function() {
+      initDashboard();
+    };
+  </script>
+  
+  <!-- Footer -->
+  <footer class="mt-12 py-8 text-white" style="background-color: #75221B;">
+    <div class="container mx-auto px-6">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+          <p class="text-yellow-300 font-semibold">Velocity Sellers</p>
+          <p class="text-yellow-100 text-sm">Amazon Inventory Management Solutions</p>
+        </div>
+        <div class="text-center md:text-right">
+          <p class="text-yellow-100 text-sm">© <span id="footerYear">2025</span> Velocity Sellers. All rights reserved<span onclick="showView('holidayPlanning')" style="cursor: default;">.</span></p>
+          <p class="text-yellow-100 text-sm">
+            <a href="https://velocitysellers.com" target="_blank" class="hover:text-yellow-300 transition-colors">velocitysellers.com</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

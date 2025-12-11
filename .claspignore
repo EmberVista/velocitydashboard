@@ -1,0 +1,5 @@
+Reflux Gourmet Report/**
+node_modules/**
+.git/**
+._*
+.DS_Store
