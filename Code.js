@@ -1799,7 +1799,24 @@ function selectPrimarySku(skuArray, salesData) {
     const sku = skuObj.sku;
     let score = 0;
 
-    // Shorter SKU name gets higher score (prefer original over variants)
+    // Revenue is the most important factor for selecting primary SKU
+    // Use pre-calculated revenue90Days if available (from OOS results)
+    if (skuObj.revenue90Days) {
+      score += skuObj.revenue90Days; // Direct revenue score
+    } else if (salesData && salesData.t90) {
+      // Fall back to looking up in sales data
+      const sales90 = salesData.t90.find(s =>
+        (s['sku'] && s['sku'] === sku) ||
+        (s['child-asin'] && s['child-asin'] === skuObj.asin)
+      );
+      if (sales90) {
+        const revenue = parseFloat((sales90['Ordered Product Sales'] || '0').toString().replace(/[$,]/g, ''));
+        const units = parseInt(sales90['Units Ordered'] || sales90['units'] || 0);
+        score += revenue || (units * 10); // Use revenue, fallback to units * 10
+      }
+    }
+
+    // Shorter SKU name gets minor bonus (prefer original over variants)
     // Max bonus: 100 points (normalized by length difference)
     const lengthScore = Math.max(0, 100 - String(sku).length);
     score += lengthScore;
@@ -1807,18 +1824,6 @@ function selectPrimarySku(skuArray, salesData) {
     // Active status gets bonus
     if (skuObj.status && skuObj.status.toLowerCase() === 'active') {
       score += 50;
-    }
-
-    // Sales volume as tie-breaker (90-day sales)
-    if (salesData && salesData.t90) {
-      const sales90 = salesData.t90.find(s =>
-        (s['sku'] && s['sku'] === sku) ||
-        (s['child-asin'] && s['child-asin'] === skuObj.asin)
-      );
-      if (sales90) {
-        const units = parseInt(sales90['Sessions'] || sales90['units'] || 0);
-        score += units / 10; // Smaller weight for sales
-      }
     }
 
     return { sku, score };
@@ -1870,6 +1875,85 @@ function buildAsinToSkuMap(allListings) {
   console.log(`Found ${sharedAsinCount} ASINs with multiple SKUs`);
 
   return asinToSkuMap;
+}
+
+/**
+ * Builds a map of ASIN -> inventory availability status across all FBA SKUs
+ * Used to determine if an ASIN has ANY FBA SKU with inventory (to filter false positives)
+ *
+ * @param {Array} allListings - All Listings report data
+ * @param {Map} fbaInventoryMap - Map of SKU -> FBA inventory item
+ * @returns {Map<string, {hasInventory: boolean, fbaSkusWithInventory: string[], allFbaSkus: string[]}>}
+ */
+function buildAsinInventoryStatus(allListings, fbaInventoryMap) {
+  const asinStatus = new Map();
+
+  allListings.forEach(listing => {
+    const asin = getColumnValue(listing, 'asin');
+    const sku = getColumnValue(listing, 'sku');
+    const fulfillmentChannel = getColumnValue(listing, 'fulfillmentChannel');
+
+    // Only consider FBA SKUs (AMAZON_NA)
+    if (!asin || !sku || fulfillmentChannel !== 'AMAZON_NA') return;
+    if (isInvalidSku(sku)) return;
+
+    // Initialize ASIN entry if needed
+    if (!asinStatus.has(asin)) {
+      asinStatus.set(asin, {
+        hasInventory: false,
+        fbaSkusWithInventory: [],
+        allFbaSkus: []
+      });
+    }
+
+    const status = asinStatus.get(asin);
+    status.allFbaSkus.push(sku);
+
+    // Check if this SKU has available inventory
+    const fbaItem = fbaInventoryMap.get(sku);
+    if (fbaItem) {
+      const fulfillableQuantity = parseInt(fbaItem['afn-fulfillable-quantity'] || fbaItem['available'] || 0) || 0;
+      const inboundWorking = parseInt(fbaItem['afn-inbound-working-quantity'] || 0) || 0;
+      const inboundShipped = parseInt(fbaItem['afn-inbound-shipped-quantity'] || 0) || 0;
+      const inboundReceiving = parseInt(fbaItem['afn-inbound-receiving-quantity'] || 0) || 0;
+      const futureSupplyBuyable = parseInt(fbaItem['afn-future-supply-buyable'] || 0) || 0;
+
+      // Check aggregate inbound-quantity fallback
+      let totalInbound = inboundWorking + inboundShipped + inboundReceiving;
+      if (totalInbound === 0 && fbaItem['inbound-quantity']) {
+        totalInbound = parseInt(fbaItem['inbound-quantity'] || 0) || 0;
+      }
+
+      // Available pipeline excludes reserved (same logic as main OOS check)
+      const availablePipeline = fulfillableQuantity + totalInbound + futureSupplyBuyable;
+
+      // Check health status for OOS
+      const healthStatus = getColumnValue(fbaItem, 'inventoryHealthStatus');
+      const isOutOfStockByHealth = healthStatus && healthStatus.toLowerCase().includes('out of stock');
+
+      // SKU has inventory if pipeline > 0 AND not marked OOS by health status
+      if (availablePipeline > 0 && !isOutOfStockByHealth) {
+        status.hasInventory = true;
+        status.fbaSkusWithInventory.push(sku);
+      }
+    }
+  });
+
+  // Log summary for multi-SKU ASINs
+  let asinWithInventory = 0;
+  let asinAllOos = 0;
+  asinStatus.forEach((status, asin) => {
+    if (status.allFbaSkus.length > 1) {
+      if (status.hasInventory) {
+        asinWithInventory++;
+      } else {
+        asinAllOos++;
+      }
+    }
+  });
+  console.log(`ASIN inventory status: ${asinWithInventory} multi-SKU ASINs have inventory, ${asinAllOos} completely OOS`);
+
+  return asinStatus;
 }
 
 // Helper function to build ASIN to price mapping from All Listings Report
@@ -2189,6 +2273,9 @@ function processRevenueRisk(data, priceMap, clientId) {
   // Build ASIN-to-SKU mapping to detect shared ASINs (multiple SKUs per ASIN)
   const asinToSkuMap = buildAsinToSkuMap(data.allListings);
 
+  // Build ASIN-level inventory status to filter multi-SKU ASINs where at least one SKU has stock
+  const asinInventoryStatus = buildAsinInventoryStatus(data.allListings, fbaInventoryMap);
+
   // Helper to check if an ASIN has multiple SKUs (regardless of fulfillment method)
   const hasSharedAsin = (asin) => {
     const skuList = asinToSkuMap.get(asin);
@@ -2280,6 +2367,14 @@ function processRevenueRisk(data, priceMap, clientId) {
 
     // SKU is at risk if out of stock
     if (isOutOfStock) {
+      // ASIN-LEVEL FILTER: Skip if this ASIN has inventory via another FBA SKU
+      // This prevents false positives when one variant is OOS but others are in stock
+      const asinStatus = asinInventoryStatus.get(asin);
+      if (asinStatus && asinStatus.hasInventory) {
+        // This ASIN has at least one SKU with inventory - customer can still buy
+        return; // Skip this OOS SKU
+      }
+
       // Check if it has recent sales (90 days is sufficient)
       const sales90Data = findSalesForSKU(data.t90, sku, asin, priceMap);
       const sales365Data = findSalesForSKU(data.t365, sku, asin, priceMap);
@@ -2358,6 +2453,13 @@ function processRevenueRisk(data, priceMap, clientId) {
 
       // Only include if still has recent sales (90 days is sufficient)
       if (sales90Data && sales90Data.units > 0) {
+        // ASIN-LEVEL FILTER: Skip if this ASIN has inventory via another FBA SKU
+        const asinStatus = asinInventoryStatus.get(ghost.asin);
+        if (asinStatus && asinStatus.hasInventory) {
+          console.log(`Skipping ghost SKU ${ghost.sku}: ASIN ${ghost.asin} has inventory via other SKU(s)`);
+          return; // Skip this ghost - ASIN has inventory elsewhere
+        }
+
         const lostPerDay90 = sales90Data.revenue / 90;
         const lostPerDay365 = sales365Data ? sales365Data.revenue / 365 : 0;
         const lostRevenuePerDay = Math.max(lostPerDay90, lostPerDay365);
@@ -2404,7 +2506,7 @@ function processRevenueRisk(data, priceMap, clientId) {
 
   console.log(`Total revenue at risk SKUs (including ghosts): ${results.length}`);
 
-  // Group results by ASIN to identify and mark primary SKUs
+  // Group results by ASIN to identify multi-SKU ASINs where ALL are OOS
   const asinGroups = new Map();
   results.forEach(result => {
     if (!asinGroups.has(result.asin)) {
@@ -2413,38 +2515,44 @@ function processRevenueRisk(data, priceMap, clientId) {
     asinGroups.get(result.asin).push(result);
   });
 
-  // Mark primary vs secondary SKUs for each ASIN
+  // Filter: For multi-SKU ASINs where ALL are OOS, only show the primary SKU
+  const filteredResults = [];
   asinGroups.forEach((skuList, asin) => {
     if (skuList.length > 1) {
-      // Multiple SKUs share this ASIN - determine primary
-      // Build array of SKU objects for selectPrimarySku
+      // Multiple OOS SKUs share this ASIN - select and keep only the primary
+      // Include revenue in SKU objects for better primary selection
       const skuObjects = skuList.map(r => ({
         sku: r.sku,
         asin: r.asin,
-        status: r.status || 'active' // Default to active if not specified
+        status: r.status || 'active',
+        revenue90Days: r.revenue90Days
       }));
 
-      // Select primary SKU (pass sales data from the data parameter)
       const primarySku = selectPrimarySku(skuObjects, data);
 
-      // Mark each result in the group
-      skuList.forEach(result => {
-        if (result.sku === primarySku) {
-          result.isPrimary = true;
-        } else {
-          result.isPrimary = false;
-          result.primarySku = primarySku;
-        }
-      });
+      // Find the primary result and add metadata
+      const primaryResult = skuList.find(r => r.sku === primarySku);
+      if (primaryResult) {
+        primaryResult.isPrimary = true;
+        primaryResult.otherOosSkus = skuList
+          .filter(r => r.sku !== primarySku)
+          .map(r => r.sku);
+        primaryResult.totalOosSiblings = skuList.length;
+        // Aggregate revenue from all OOS SKUs for this ASIN
+        primaryResult.combinedRevenue90Days = skuList.reduce((sum, r) => sum + r.revenue90Days, 0);
+        primaryResult.combinedLostRevenuePerDay = skuList.reduce((sum, r) => sum + r.lostRevenuePerDay, 0);
+        filteredResults.push(primaryResult);
+      }
 
-      console.log(`ASIN ${asin} has ${skuList.length} SKUs - Primary: ${primarySku}`);
+      console.log(`ASIN ${asin} has ${skuList.length} OOS SKUs - showing primary: ${primarySku}`);
     } else {
-      // Only one SKU for this ASIN - mark as primary
+      // Only one SKU for this ASIN - keep it
       skuList[0].isPrimary = true;
+      filteredResults.push(skuList[0]);
     }
   });
 
-  return results.sort((a, b) => b.lostRevenuePerDay - a.lostRevenuePerDay).slice(0, 10);
+  return filteredResults.sort((a, b) => b.lostRevenuePerDay - a.lostRevenuePerDay).slice(0, 10);
 }
 
 // Process SKU Trends
