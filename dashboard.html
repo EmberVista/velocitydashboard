@@ -504,7 +504,10 @@
                     <span class="text-xs text-gray-400 ml-1" title="Sales trend over the last 90 days in 30-day increments">ⓘ</span>
                   </th>
                   <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 8, 'currency')">90-Day Revenue</th>
-                  <th class="pb-2 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 9, 'number')">Change %</th>
+                  <th class="pb-2 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 9, 'number')" title="Percent change comparing last 30 days vs previous 30 days">
+                    Change %
+                    <span class="text-xs text-gray-400 ml-1" title="Percent change comparing last 30 days vs previous 30 days (days 1-30 vs days 31-60)">ⓘ</span>
+                  </th>
                 </tr>
               </thead>
               <tbody id="skuTrendsAnalysisFullBody" class="divide-y divide-gray-100">

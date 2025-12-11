@@ -3085,11 +3085,11 @@ function processSKUTrendsAnalysis(data, priceMap, awdInventoryMap = new Map()) {
     }
   });
   
-  // Sort by 90-day revenue (highest first)
+  // Sort by 90-day units sold (highest first)
   results.sort((a, b) => {
-    const aRevenue = a.revenue90 || a.revenue365;
-    const bRevenue = b.revenue90 || b.revenue365;
-    return bRevenue - aRevenue;
+    const aUnits = a.units90 || a.units365 || 0;
+    const bUnits = b.units90 || b.units365 || 0;
+    return bUnits - aUnits;
   });
   
   // Calculate revenue percentiles
