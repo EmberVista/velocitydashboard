@@ -251,7 +251,7 @@ function doGet(e) {
     console.log('Direct RTIC test requested');
     const testData = {
       fbmToFBA: [],
-      excessInventory: [],
+      excessInventory: { items: [], ageSummary: { days0_90: { units: 0, skuCount: 0 }, days91_180: { units: 0, skuCount: 0 }, days181_270: { units: 0, skuCount: 0 }, days271_365: { units: 0, skuCount: 0 }, days365Plus: { units: 0, skuCount: 0 } }, totalInventoryUnits: 0 },
       revenueRisk: [],
       skuTrends: [],
       lilfMonitor: [],
@@ -1414,7 +1414,7 @@ function storeCurrentMetrics(clientId, processedData, rawData) {
     
     const metrics = {
       fbmCount: processedData.fbmToFba.length,
-      excessCount: processedData.excessInventory.length,
+      excessCount: processedData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length,
       revenueRisk: processedData.revenueRisk.reduce((sum, item) => sum + item.lostRevenuePerDay, 0),
       lilfCount: processedData.lilfMonitor.length,
       trendsCount: processedData.skuTrendsAnalysis ? processedData.skuTrendsAnalysis.length : 0,
@@ -1474,7 +1474,7 @@ function calculateMetricChanges(clientId, currentData, rawData) {
       
       const changes = {
         fbmChange: currentData.fbmToFba.length - (previous.fbmCount || 0),
-        excessChange: currentData.excessInventory.length - (previous.excessCount || 0),
+        excessChange: currentData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length - (previous.excessCount || 0),
         revenueRiskChange: currentRevenueRisk - (previous.revenueRisk || 0),
         lilfChange: currentData.lilfMonitor.length - (previous.lilfCount || 0),
         trendsChange: (currentData.skuTrendsAnalysis ? currentData.skuTrendsAnalysis.length : 0) - (previous.trendsCount || 0),
@@ -1505,7 +1505,7 @@ function calculateMetricChanges(clientId, currentData, rawData) {
       
       return {
         fbmChange: currentData.fbmToFba.length - (previous.fbmCount || 0),
-        excessChange: currentData.excessInventory.length - (previous.excessCount || 0),
+        excessChange: currentData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length - (previous.excessCount || 0),
         revenueRiskChange: currentRevenueRisk - (previous.revenueRisk || 0),
         lilfChange: currentData.lilfMonitor.length - (previous.lilfCount || 0),
         trendsChange: (currentData.skuTrendsAnalysis ? currentData.skuTrendsAnalysis.length : 0) - (previous.trendsCount || 0),
@@ -2173,58 +2173,68 @@ function findSalesForSKU(salesReport, sku, asin, priceMap) {
 
 // Process Excess Inventory
 function processExcessInventory(data) {
-  const results = [];
+  var results = [];
+  var ageSummary = {
+    days0_90: { units: 0, skuCount: 0 },
+    days91_180: { units: 0, skuCount: 0 },
+    days181_270: { units: 0, skuCount: 0 },
+    days271_365: { units: 0, skuCount: 0 },
+    days365Plus: { units: 0, skuCount: 0 }
+  };
+  var totalInventoryUnits = 0;
 
-  data.fbaInventory.forEach(item => {
-    const sku = item['sku'] || item['SKU'];
+  data.fbaInventory.forEach(function(item) {
+    var sku = item['sku'] || item['SKU'];
+    if (isInvalidSku(sku)) return;
 
-    // Skip invalid SKUs that contain ".found" or ".missing" patterns
-    if (isInvalidSku(sku)) {
-      return;
-    }
+    var days0_90 = parseInt(item['inv-age-0-to-90-days'] || item['inv-age-0-90-days'] || 0) || 0;
+    var days91_180 = parseInt(item['inv-age-91-to-180-days'] || item['inv-age-91-180-days'] || 0) || 0;
+    var days181_270 = parseInt(item['inv-age-181-to-270-days'] || item['inv-age-181-270-days'] || 0) || 0;
+    var days271_365 = parseInt(item['inv-age-271-to-365-days'] || item['inv-age-271-365-days'] || 0) || 0;
+    var days365Plus = parseInt(item['inv-age-365-plus-days'] || 0) || 0;
 
-    // Age bucket columns (flexible detection) - only 181+ days (columns K through M)
-    const days181_270 = parseInt(item['inv-age-181-to-270-days'] || item['inv-age-181-270-days'] || item['181-270 days'] || 0);
-    const days271_365 = parseInt(item['inv-age-271-to-365-days'] || item['inv-age-271-365-days'] || item['271-365 days'] || 0);
-    const days365Plus = parseInt(item['inv-age-365-plus-days'] || item['365+ days'] || 0);
+    if (days0_90 > 0) { ageSummary.days0_90.units += days0_90; ageSummary.days0_90.skuCount++; }
+    if (days91_180 > 0) { ageSummary.days91_180.units += days91_180; ageSummary.days91_180.skuCount++; }
+    if (days181_270 > 0) { ageSummary.days181_270.units += days181_270; ageSummary.days181_270.skuCount++; }
+    if (days271_365 > 0) { ageSummary.days271_365.units += days271_365; ageSummary.days271_365.skuCount++; }
+    if (days365Plus > 0) { ageSummary.days365Plus.units += days365Plus; ageSummary.days365Plus.skuCount++; }
 
-    const totalAged = days181_270 + days271_365 + days365Plus;
+    var totalUnits = days0_90 + days91_180 + days181_270 + days271_365 + days365Plus;
+    totalInventoryUnits += totalUnits;
+    var totalAged = days181_270 + days271_365 + days365Plus;
 
-    if (totalAged > 0) {
-      // Calculate priority score (older inventory gets higher score)
-      const priorityScore = (days365Plus * 3) + (days271_365 * 2) + (days181_270 * 1);
-
+    if (totalUnits > 0) {
+      var priorityScore = (days365Plus * 3) + (days271_365 * 2) + (days181_270 * 1);
       results.push({
         sku: sku,
         asin: item['asin1'] || item['asin'] || item['ASIN'],
         title: item['product-name'] || item['Product Name'] || item['title'] || item['item-name'] || item['Title'],
+        days0_90: days0_90,
+        days91_180: days91_180,
         days181_270: days181_270,
         days271_365: days271_365,
         days365Plus: days365Plus,
         totalAgedUnits: totalAged,
+        totalUnits: totalUnits,
         priorityScore: priorityScore,
-        estimatedStorage: totalAged * 0.75 // Rough estimate
+        estimatedStorage: totalAged * 0.75,
+        hasAgedInventory: totalAged > 0
       });
     }
   });
-  
-  // Sort by oldest inventory first, then by quantity within each age group
-  return results.sort((a, b) => {
-    // First priority: 365+ days (oldest)
-    if (a.days365Plus !== b.days365Plus) {
-      return b.days365Plus - a.days365Plus;
-    }
-    // Second priority: 271-365 days
-    if (a.days271_365 !== b.days271_365) {
-      return b.days271_365 - a.days271_365;
-    }
-    // Third priority: 181-270 days
-    if (a.days181_270 !== b.days181_270) {
-      return b.days181_270 - a.days181_270;
-    }
-    // If all age buckets are equal, sort by total aged units
+
+  results.sort(function(a, b) {
+    if (a.days365Plus !== b.days365Plus) return b.days365Plus - a.days365Plus;
+    if (a.days271_365 !== b.days271_365) return b.days271_365 - a.days271_365;
+    if (a.days181_270 !== b.days181_270) return b.days181_270 - a.days181_270;
     return b.totalAgedUnits - a.totalAgedUnits;
   });
+
+  return {
+    items: results,
+    ageSummary: ageSummary,
+    totalInventoryUnits: totalInventoryUnits
+  };
 }
 
 // Process Revenue at Risk (v207 - Fixed reserved inventory handling)

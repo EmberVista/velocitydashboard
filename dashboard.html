@@ -287,6 +287,11 @@
               </button>
             </div>
           </div>
+          <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-sm font-medium text-gray-700 mb-3">Inventory Age Distribution</h3>
+            <div class="flex h-10 rounded-lg overflow-hidden shadow-sm" id="ageChartBar"></div>
+            <div class="flex flex-wrap gap-4 mt-3 text-xs" id="ageChartLegend"></div>
+          </div>
         </div>
         <div class="p-6">
           <div class="overflow-x-auto">
@@ -504,10 +509,7 @@
                     <span class="text-xs text-gray-400 ml-1" title="Sales trend over the last 90 days in 30-day increments">ⓘ</span>
                   </th>
                   <th class="pb-2 pr-4 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 8, 'currency')">90-Day Revenue</th>
-                  <th class="pb-2 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 9, 'number')" title="Percent change comparing last 30 days vs previous 30 days">
-                    Change %
-                    <span class="text-xs text-gray-400 ml-1" title="Percent change comparing last 30 days vs previous 30 days (days 1-30 vs days 31-60)">ⓘ</span>
-                  </th>
+                  <th class="pb-2 text-center sortable" onclick="sortTable('skuTrendsAnalysisFullTable', 9, 'number')">Change %</th>
                 </tr>
               </thead>
               <tbody id="skuTrendsAnalysisFullBody" class="divide-y divide-gray-100">
@@ -878,7 +880,8 @@
           populateFBMFullTable();
           break;
         case 'excessInventory':
-          console.log('Calling populateExcessFullTable');
+          console.log('Calling populateExcessFullTable and renderAgeChart');
+          renderAgeChart();
           populateExcessFullTable();
           break;
         case 'revenueRisk':
@@ -1115,9 +1118,10 @@
       document.getElementById('fbmCount').innerHTML = 
         createChangeIndicator(dashboardData.fbmToFba.length, changes.fbmChange || 0);
       
-      // Excess inventory count
-      document.getElementById('excessCount').innerHTML = 
-        createChangeIndicator(dashboardData.excessInventory.length, changes.excessChange || 0);
+      // Excess inventory count (only count items with aged inventory 181+)
+      var excessCount = dashboardData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length;
+      document.getElementById('excessCount').innerHTML =
+        createChangeIndicator(excessCount, changes.excessChange || 0);
       
       // Revenue at risk total - show daily lost revenue
       const totalLostPerDay = dashboardData.revenueRisk.reduce(
@@ -1192,14 +1196,15 @@
 
     // Populate Excess Inventory table
     function populateExcessTable() {
-      const tbody = document.getElementById('excessTable');
-      
-      if (dashboardData.excessInventory.length === 0) {
+      var tbody = document.getElementById('excessTable');
+      var items = dashboardData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; });
+
+      if (items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">No excess inventory found</td></tr>';
         return;
       }
-      
-      tbody.innerHTML = dashboardData.excessInventory.slice(0, 10).map(item => `
+
+      tbody.innerHTML = items.slice(0, 10).map(item => `
         <tr class="hover:bg-gray-50">
           <td class="py-2">
             <div class="font-medium text-gray-900">${item.sku}</div>
@@ -1639,10 +1644,13 @@
       
       if (!dashboardData || !dashboardData[dataKey]) return;
 
-      // Handle vendorCentral special structure
-      let data;
-      if (dataKey === 'vendorCentral') {
+      // Handle special structures (vendorCentral and excessInventory have nested items)
+      var data;
+      if (dataKey === 'vendorCentral' || dataKey === 'excessInventory') {
         data = dashboardData[dataKey].items;
+        if (dataKey === 'excessInventory') {
+          data = data.filter(function(i) { return i.hasAgedInventory; });
+        }
       } else {
         data = dashboardData[dataKey];
       }
@@ -1780,8 +1788,10 @@
     
     // Populate Excess Full Table
     function populateExcessFullTable() {
-      const tbody = document.getElementById('excessFullBody');
-      tbody.innerHTML = dashboardData.excessInventory.map(item => `
+      var tbody = document.getElementById('excessFullBody');
+      var items = dashboardData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; });
+
+      tbody.innerHTML = items.map(item => `
         <tr>
           <td class="py-2">
             <a href="https://sellercentral.amazon.com/skucentral?mSku=${encodeURIComponent(item.sku)}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
@@ -1796,7 +1806,39 @@
         </tr>
       `).join('');
     }
-    
+
+    function renderAgeChart() {
+      var barEl = document.getElementById('ageChartBar');
+      var legendEl = document.getElementById('ageChartLegend');
+      if (!barEl || !legendEl) return;
+      var summary = dashboardData.excessInventory.ageSummary;
+      var total = dashboardData.excessInventory.totalInventoryUnits;
+      if (total === 0) {
+        barEl.innerHTML = 'No inventory data';
+        legendEl.innerHTML = '';
+        return;
+      }
+      var buckets = [];
+      buckets.push({label: '0-90', bg: 'bg-green-500', units: summary.days0_90.units});
+      buckets.push({label: '91-180', bg: 'bg-yellow-500', units: summary.days91_180.units});
+      buckets.push({label: '181-270', bg: 'bg-orange-500', units: summary.days181_270.units});
+      buckets.push({label: '271-365', bg: 'bg-red-500', units: summary.days271_365.units});
+      buckets.push({label: '365+', bg: 'bg-red-700', units: summary.days365Plus.units});
+      var barHtml = '';
+      var legendHtml = '';
+      for (var i = 0; i < buckets.length; i++) {
+        var b = buckets[i];
+        var pct = (b.units / total) * 100;
+        var w = Math.max(pct, 2);
+        if (b.units > 0) {
+          barHtml = barHtml + '<div class="' + b.bg + ' flex items-center justify-center text-white text-xs font-medium" style="width:' + w.toFixed(1) + '%">' + (pct >= 10 ? b.label : '') + '</div>';
+        }
+        legendHtml = legendHtml + '<div class="flex items-center gap-1"><div class="w-3 h-3 rounded ' + b.bg + '"></div><span>' + b.label + ':</span><span class="font-medium">' + b.units.toLocaleString() + '</span><span class="text-gray-400">(' + pct.toFixed(1) + '%)</span></div>';
+      }
+      barEl.innerHTML = barHtml;
+      legendEl.innerHTML = legendHtml;
+    }
+
     // Populate Revenue Risk Full Table
     function populateRevenueRiskFullTable() {
       const tbody = document.getElementById('riskFullBody');
