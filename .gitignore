@@ -1,0 +1,39 @@
+# macOS system files
+.DS_Store
+._.DS_Store
+._*
+
+# Backup files
+*.backup
+*.bak
+
+# Node modules (if ever used)
+node_modules/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Environment files (if ever used)
+.env
+.env.local
+.env.*.local
+
+# Build outputs (if ever used)
+dist/
+build/

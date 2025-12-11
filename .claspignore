@@ -1,5 +1,28 @@
+# Other projects
 Reflux Gourmet Report/**
+
+# Dependencies
 node_modules/**
+
+# Version control
 .git/**
+.gitignore
+
+# macOS system files
 ._*
 .DS_Store
+._.DS_Store
+
+# Backup files
+*.backup
+*.bak
+
+# Documentation (not needed in Apps Script)
+CLAUDE.md
+
+# Claude Code config
+.claude/**
+
+# IDE files
+.idea/**
+.vscode/**
