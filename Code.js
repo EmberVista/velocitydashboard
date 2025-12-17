@@ -30,21 +30,21 @@ function validateAllListingsReport(data) {
   if (!data || data.length === 0) {
     return { valid: false, message: 'All Listings Report is empty' };
   }
-
+  
   const firstRow = data[0];
   const availableColumns = Object.keys(firstRow);
   const missingColumns = [];
-
+  
   // Check for mandatory columns
   const mandatoryColumns = ['sku', 'status', 'fulfillmentChannel'];
-
+  
   for (const columnType of mandatoryColumns) {
     const value = getColumnValue(firstRow, columnType);
     if (value === null) {
       missingColumns.push(`${columnType} (looked for: ${COLUMN_MAPPINGS[columnType].join(', ')})`);
     }
   }
-
+  
   if (missingColumns.length > 0) {
     return {
       valid: false,
@@ -52,7 +52,7 @@ function validateAllListingsReport(data) {
       availableColumns: availableColumns
     };
   }
-
+  
   return { valid: true, message: 'All required columns found' };
 }
 
@@ -146,6 +146,51 @@ const FALLBACK_CONFIG = {
 
 // Main entry point
 // Test function to verify Google Apps Script return values
+function testSimpleReturn() {
+  console.log('testSimpleReturn called');
+  return { 
+    message: 'Test successful',
+    success: true,
+    timestamp: new Date().toISOString()
+  };
+}
+
+// New function name to avoid any caching issues
+function getRTICDashboardData(clientId) {
+  console.log('getRTICDashboardData called for:', clientId);
+  
+  // For now, just return test data
+  return {
+    fbmToFBA: [],
+    excessInventory: [],
+    revenueRisk: [],
+    skuTrends: [],
+    lilfMonitor: [],
+    lastUpdate: new Date().toISOString(),
+    holidayPlanning: null,
+    changes: {},
+    testMode: true,
+    clientId: clientId
+  };
+}
+
+// Test function that mimics loadDashboardData structure
+function testLoadDashboardData(clientId) {
+  console.log('testLoadDashboardData called for:', clientId);
+  
+  // Return exact same structure as loadDashboardData
+  return {
+    fbmToFBA: [{test: 'data'}],
+    excessInventory: [],
+    revenueRisk: [],
+    skuTrends: [],
+    lilfMonitor: [],
+    lastUpdate: new Date().toISOString(),
+    holidayPlanning: null,
+    changes: {}
+  };
+}
+
 function doGet(e) {
   // Handle action parameters FIRST before checking for client
   if (e.parameter.action) {
@@ -251,7 +296,7 @@ function doGet(e) {
     console.log('Direct RTIC test requested');
     const testData = {
       fbmToFBA: [],
-      excessInventory: { items: [], ageSummary: { days0_90: { units: 0, skuCount: 0 }, days91_180: { units: 0, skuCount: 0 }, days181_270: { units: 0, skuCount: 0 }, days271_365: { units: 0, skuCount: 0 }, days365Plus: { units: 0, skuCount: 0 } }, totalInventoryUnits: 0 },
+      excessInventory: [],
       revenueRisk: [],
       skuTrends: [],
       lilfMonitor: [],
@@ -662,7 +707,8 @@ function doGet(e) {
     // Create template and pass client ID
     const template = HtmlService.createTemplateFromFile('q4planning');
     template.clientId = clientId || '';
-
+    
+    // Directly show Q4 planning page without password
     return template.evaluate()
       .setTitle('Q4 Holiday Inventory Planning')
       .setSandboxMode(HtmlService.SandboxMode.IFRAME)
@@ -1065,7 +1111,7 @@ function loadDashboardDataWithProgress(clientId) {
       { name: 't180', weight: 10, message: 'Loading 180-day sales data...' },
       { name: 't365', weight: 10, message: 'Loading 365-day sales data...' },
       { name: 'fba', weight: 15, message: 'Loading FBA inventory data...' },
-      { name: 'fbaInventory', weight: 15, message: 'Loading FBA inventory details...', optional: true },
+      { name: 'fbaInventory', weight: 15, message: 'Loading FBA inventory details...' },
       { name: 'allListings', weight: 10, message: 'Loading all listings data...' }
     ];
 
@@ -1093,10 +1139,10 @@ function loadDashboardDataWithProgress(clientId) {
         console.error(`Error message: ${error.message}`);
         console.error(`Error stack: ${error.stack}`);
 
-        // For optional reports (vendor, fbaInventory), set to null and continue
-        if (report.optional || report.name === 'vendor' || report.name === 'fbaInventory') {
+        // For vendor, set to null explicitly
+        if (report.name === 'vendor') {
           data[report.name] = null;
-          console.log(`${report.name} set to null due to error (optional report)`);
+          console.log('Vendor data set to null due to error');
         }
         // Continue with other reports
       }
@@ -1120,11 +1166,6 @@ function loadDashboardDataWithProgress(clientId) {
       console.log('Vendor data rows:', data.vendor.length);
     }
 
-    // Update ghost SKU registry BEFORE processing revenue risk
-    // This ensures ghost SKUs are detected from current data
-    console.log('Updating ghost SKU registry...');
-    updateGhostSkuRegistry(clientId, data.fba, { t90: data.t90, t365: data.t365 }, priceMap);
-
     // Process each feature
     const result = {
       fbmToFba: processFBMtoFBA(data, priceMap),
@@ -1135,7 +1176,7 @@ function loadDashboardDataWithProgress(clientId) {
       lilfMonitor: processLILFMonitor(data),
       vendorCentral: data.vendor ? processVendorCentralAnalysis(data.vendor, priceMap) : null
     };
-
+    
     // Calculate changes from previous metrics
     const changes = calculateMetricChanges(clientId, result, data);
     result.changes = changes;
@@ -1253,9 +1294,84 @@ function loadDashboardData(clientId) {
   }
 }
 
+// Simple test function for google.script.run
+function testSimpleReturn() {
+  return {
+    success: true,
+    message: 'Test successful',
+    timestamp: new Date().toISOString()
+  };
+}
+
+// Test function that mimics loadDashboardData structure
+function testRTICData() {
+  return {
+    fbmToFba: [],
+    excessInventory: [],
+    revenueRisk: [],
+    skuTrends: [],
+    skuTrendsAnalysis: [],
+    lilfMonitor: [],
+    changes: {
+      fbmChange: 0,
+      excessChange: 0,
+      revenueRiskChange: 0,
+      lilfChange: 0,
+      trendsChange: 0,
+      newFbmSkus: [],
+      isFirstLoad: true
+    }
+  };
+}
+
 // ========================================
-// GHOST SKU UTILITY FUNCTIONS
+// GHOST SKU TESTING & DEBUG FUNCTIONS
 // ========================================
+
+// Seed ghost SKUs for testing (use in Apps Script editor)
+function seedGhostSkusForTesting(clientId, testSkus) {
+  try {
+    const testData = {
+      lastUpdated: new Date().toISOString(),
+      skus: testSkus || [
+        {
+          sku: "B0C8PLK43M",
+          asin: "B0C8PLK43M",
+          title: "Test Ghost Product 1",
+          lastSeenDate: new Date().toISOString(),
+          revenue90: 1250.50,
+          revenue365: 5200.00,
+          units90: 50,
+          units365: 200
+        },
+        {
+          sku: "B0C8PNZWYM",
+          asin: "B0C8PNZWYM",
+          title: "Test Ghost Product 2",
+          lastSeenDate: new Date().toISOString(),
+          revenue90: 890.25,
+          revenue365: 3800.00,
+          units90: 35,
+          units365: 150
+        }
+      ]
+    };
+
+    PropertiesService.getScriptProperties()
+      .setProperty(`ghost_skus_${clientId}`, JSON.stringify(testData));
+
+    console.log(`Seeded ${testData.skus.length} ghost SKUs for ${clientId}`);
+    return {
+      success: true,
+      clientId: clientId,
+      skusSeeded: testData.skus.length,
+      skus: testData.skus.map(s => s.sku)
+    };
+  } catch (error) {
+    console.error('Error seeding ghost SKUs:', error);
+    return { success: false, error: error.message };
+  }
+}
 
 // View ghost SKUs for a client
 function viewGhostSkus(clientId) {
@@ -1287,6 +1403,63 @@ function clearGhostSkus(clientId) {
   } catch (error) {
     console.error('Error clearing ghost SKUs:', error);
     return { success: false, error: error.message };
+  }
+}
+
+// Test ghost SKU detection and reporting
+function testGhostSkuDetection(clientId) {
+  try {
+    console.log(`=== Testing Ghost SKU Detection for ${clientId} ===`);
+
+    // Load client data
+    const clientConfig = loadClientConfig(clientId);
+    if (!clientConfig) {
+      return { error: `Client config not found for ${clientId}` };
+    }
+
+    // Get ghost SKUs
+    const ghostData = getGhostSkus(clientId);
+    console.log(`Found ${ghostData.skus ? ghostData.skus.length : 0} ghost SKUs`);
+
+    // Load FBA inventory to check if ghosts are still missing
+    const fbaData = getSheetData('fba', clientConfig);
+    const activeFbaSkus = new Set(fbaData.map(item => item['sku'] || item['SKU']).filter(Boolean));
+
+    const results = {
+      clientId: clientId,
+      totalGhosts: ghostData.skus ? ghostData.skus.length : 0,
+      ghostsStillMissing: 0,
+      ghostsReappeared: 0,
+      ghostDetails: []
+    };
+
+    if (ghostData.skus) {
+      ghostData.skus.forEach(ghost => {
+        const stillMissing = !activeFbaSkus.has(ghost.sku);
+
+        if (stillMissing) {
+          results.ghostsStillMissing++;
+        } else {
+          results.ghostsReappeared++;
+        }
+
+        results.ghostDetails.push({
+          sku: ghost.sku,
+          stillMissing: stillMissing,
+          revenue90: ghost.revenue90,
+          lastSeenDate: ghost.lastSeenDate
+        });
+      });
+    }
+
+    console.log(`Ghosts still missing: ${results.ghostsStillMissing}`);
+    console.log(`Ghosts reappeared: ${results.ghostsReappeared}`);
+
+    return results;
+
+  } catch (error) {
+    console.error('Error testing ghost SKU detection:', error);
+    return { error: error.message, stack: error.stack };
   }
 }
 
@@ -1414,7 +1587,7 @@ function storeCurrentMetrics(clientId, processedData, rawData) {
     
     const metrics = {
       fbmCount: processedData.fbmToFba.length,
-      excessCount: processedData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length,
+      excessCount: processedData.excessInventory.length,
       revenueRisk: processedData.revenueRisk.reduce((sum, item) => sum + item.lostRevenuePerDay, 0),
       lilfCount: processedData.lilfMonitor.length,
       trendsCount: processedData.skuTrendsAnalysis ? processedData.skuTrendsAnalysis.length : 0,
@@ -1474,7 +1647,7 @@ function calculateMetricChanges(clientId, currentData, rawData) {
       
       const changes = {
         fbmChange: currentData.fbmToFba.length - (previous.fbmCount || 0),
-        excessChange: currentData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length - (previous.excessCount || 0),
+        excessChange: currentData.excessInventory.length - (previous.excessCount || 0),
         revenueRiskChange: currentRevenueRisk - (previous.revenueRisk || 0),
         lilfChange: currentData.lilfMonitor.length - (previous.lilfCount || 0),
         trendsChange: (currentData.skuTrendsAnalysis ? currentData.skuTrendsAnalysis.length : 0) - (previous.trendsCount || 0),
@@ -1505,7 +1678,7 @@ function calculateMetricChanges(clientId, currentData, rawData) {
       
       return {
         fbmChange: currentData.fbmToFba.length - (previous.fbmCount || 0),
-        excessChange: currentData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length - (previous.excessCount || 0),
+        excessChange: currentData.excessInventory.length - (previous.excessCount || 0),
         revenueRiskChange: currentRevenueRisk - (previous.revenueRisk || 0),
         lilfChange: currentData.lilfMonitor.length - (previous.lilfCount || 0),
         trendsChange: (currentData.skuTrendsAnalysis ? currentData.skuTrendsAnalysis.length : 0) - (previous.trendsCount || 0),
@@ -1712,8 +1885,11 @@ function processFBMtoFBA(data, priceMap) {
     if ((fulfillmentChannel === 'AMAZON_NA' || fulfillmentChannel === 'AFN') && status?.toLowerCase() === 'active') {
       const sku = getColumnValue(listing, 'sku');
       // Skip invalid SKUs that contain ".found" or ".missing" patterns
-      if (sku && !isInvalidSku(sku)) {
-        fbaSkuSet.add(sku);
+      if (sku) {
+        const skuStr = String(sku);
+        if (!skuStr.includes('.found') && !skuStr.includes('.missing')) {
+          fbaSkuSet.add(sku);
+        }
       }
     }
   });
@@ -1731,13 +1907,13 @@ function processFBMtoFBA(data, priceMap) {
       // Skip if no SKU
       if (!sku) return;
 
+      // Convert SKU to string to ensure string methods work
+      const skuStr = String(sku);
+
       // Skip invalid SKUs that contain ".found" or ".missing" patterns
-      if (isInvalidSku(sku)) {
+      if (skuStr.includes('.found') || skuStr.includes('.missing')) {
         return;
       }
-
-      // Convert SKU to string for concatenation
-      const skuStr = String(sku);
 
       // Check if there's an FBA equivalent
       const potentialFbaSku = 'FBA-' + skuStr;
@@ -1765,206 +1941,15 @@ function processFBMtoFBA(data, priceMap) {
   return results.sort((a, b) => b.revenue60Days - a.revenue60Days).slice(0, 20);
 }
 
-// Helper function to check if SKU is invalid (Amazon-created variants)
-// Returns true if SKU contains .found, .missing, or similar patterns (case-insensitive)
-function isInvalidSku(sku) {
-  if (!sku) return false;
-
-  const skuStr = String(sku).toLowerCase();
-
-  // Check for common Amazon-created variant patterns (case-insensitive)
-  const invalidPatterns = [
-    '.found',
-    '.missing',
-    '-found',
-    '-missing',
-    '_found',
-    '_missing',
-    ' found',
-    ' missing'
-  ];
-
-  return invalidPatterns.some(pattern => skuStr.includes(pattern));
-}
-
-// Helper function to select primary SKU from a group sharing the same ASIN
-// Returns the SKU string that should be considered "primary"
-// Scoring logic: shorter SKU name = primary, prefer Active status, highest sales as tie-breaker
-function selectPrimarySku(skuArray, salesData) {
-  if (!skuArray || skuArray.length === 0) return null;
-  if (skuArray.length === 1) return skuArray[0].sku;
-
-  // Score each SKU
-  const scored = skuArray.map(skuObj => {
-    const sku = skuObj.sku;
-    let score = 0;
-
-    // Revenue is the most important factor for selecting primary SKU
-    // Use pre-calculated revenue90Days if available (from OOS results)
-    if (skuObj.revenue90Days) {
-      score += skuObj.revenue90Days; // Direct revenue score
-    } else if (salesData && salesData.t90) {
-      // Fall back to looking up in sales data
-      const sales90 = salesData.t90.find(s =>
-        (s['sku'] && s['sku'] === sku) ||
-        (s['child-asin'] && s['child-asin'] === skuObj.asin)
-      );
-      if (sales90) {
-        const revenue = parseFloat((sales90['Ordered Product Sales'] || '0').toString().replace(/[$,]/g, ''));
-        const units = parseInt(sales90['Units Ordered'] || sales90['units'] || 0);
-        score += revenue || (units * 10); // Use revenue, fallback to units * 10
-      }
-    }
-
-    // Shorter SKU name gets minor bonus (prefer original over variants)
-    // Max bonus: 100 points (normalized by length difference)
-    const lengthScore = Math.max(0, 100 - String(sku).length);
-    score += lengthScore;
-
-    // Active status gets bonus
-    if (skuObj.status && skuObj.status.toLowerCase() === 'active') {
-      score += 50;
-    }
-
-    return { sku, score };
-  });
-
-  // Sort by score descending and return highest
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].sku;
-}
-
-// Helper function to build ASIN to SKU mapping for shared ASIN detection
-// Returns Map<ASIN, Array<{sku, fulfillmentChannel}>>
-function buildAsinToSkuMap(allListings) {
-  const asinToSkuMap = new Map();
-
-  allListings.forEach(listing => {
-    const asin = getColumnValue(listing, 'asin');
-    const sku = getColumnValue(listing, 'sku');
-    const fulfillmentChannel = getColumnValue(listing, 'fulfillmentChannel');
-    const status = getColumnValue(listing, 'status');
-
-    // Include both active AND inactive SKUs to detect all shared ASINs
-    if (!asin || !sku) return;
-
-    // Skip invalid SKUs
-    if (isInvalidSku(sku)) return;
-
-    if (!asinToSkuMap.has(asin)) {
-      asinToSkuMap.set(asin, []);
-    }
-
-    asinToSkuMap.get(asin).push({
-      sku: sku,
-      fulfillmentChannel: fulfillmentChannel,
-      status: status  // Track status for debugging
-    });
-  });
-
-  console.log(`Built ASIN-to-SKU map with ${asinToSkuMap.size} ASINs`);
-
-  // Debug: Log ASINs with multiple SKUs
-  let sharedAsinCount = 0;
-  asinToSkuMap.forEach((skuList, asin) => {
-    if (skuList.length > 1) {
-      sharedAsinCount++;
-      console.log(`Shared ASIN detected: ${asin} has ${skuList.length} SKUs:`, skuList.map(s => s.sku).join(', '));
-    }
-  });
-  console.log(`Found ${sharedAsinCount} ASINs with multiple SKUs`);
-
-  return asinToSkuMap;
-}
-
-/**
- * Builds a map of ASIN -> inventory availability status across all FBA SKUs
- * Used to determine if an ASIN has ANY FBA SKU with inventory (to filter false positives)
- *
- * @param {Array} allListings - All Listings report data
- * @param {Map} fbaInventoryMap - Map of SKU -> FBA inventory item
- * @returns {Map<string, {hasInventory: boolean, fbaSkusWithInventory: string[], allFbaSkus: string[]}>}
- */
-function buildAsinInventoryStatus(allListings, fbaInventoryMap) {
-  const asinStatus = new Map();
-
-  allListings.forEach(listing => {
-    const asin = getColumnValue(listing, 'asin');
-    const sku = getColumnValue(listing, 'sku');
-    const fulfillmentChannel = getColumnValue(listing, 'fulfillmentChannel');
-
-    // Only consider FBA SKUs (AMAZON_NA)
-    if (!asin || !sku || fulfillmentChannel !== 'AMAZON_NA') return;
-    if (isInvalidSku(sku)) return;
-
-    // Initialize ASIN entry if needed
-    if (!asinStatus.has(asin)) {
-      asinStatus.set(asin, {
-        hasInventory: false,
-        fbaSkusWithInventory: [],
-        allFbaSkus: []
-      });
-    }
-
-    const status = asinStatus.get(asin);
-    status.allFbaSkus.push(sku);
-
-    // Check if this SKU has available inventory
-    const fbaItem = fbaInventoryMap.get(sku);
-    if (fbaItem) {
-      const fulfillableQuantity = parseInt(fbaItem['afn-fulfillable-quantity'] || fbaItem['available'] || 0) || 0;
-      const inboundWorking = parseInt(fbaItem['afn-inbound-working-quantity'] || 0) || 0;
-      const inboundShipped = parseInt(fbaItem['afn-inbound-shipped-quantity'] || 0) || 0;
-      const inboundReceiving = parseInt(fbaItem['afn-inbound-receiving-quantity'] || 0) || 0;
-      const futureSupplyBuyable = parseInt(fbaItem['afn-future-supply-buyable'] || 0) || 0;
-
-      // Check aggregate inbound-quantity fallback
-      let totalInbound = inboundWorking + inboundShipped + inboundReceiving;
-      if (totalInbound === 0 && fbaItem['inbound-quantity']) {
-        totalInbound = parseInt(fbaItem['inbound-quantity'] || 0) || 0;
-      }
-
-      // Available pipeline excludes reserved (same logic as main OOS check)
-      const availablePipeline = fulfillableQuantity + totalInbound + futureSupplyBuyable;
-
-      // Check health status for OOS
-      const healthStatus = getColumnValue(fbaItem, 'inventoryHealthStatus');
-      const isOutOfStockByHealth = healthStatus && healthStatus.toLowerCase().includes('out of stock');
-
-      // SKU has inventory if pipeline > 0 AND not marked OOS by health status
-      if (availablePipeline > 0 && !isOutOfStockByHealth) {
-        status.hasInventory = true;
-        status.fbaSkusWithInventory.push(sku);
-      }
-    }
-  });
-
-  // Log summary for multi-SKU ASINs
-  let asinWithInventory = 0;
-  let asinAllOos = 0;
-  asinStatus.forEach((status, asin) => {
-    if (status.allFbaSkus.length > 1) {
-      if (status.hasInventory) {
-        asinWithInventory++;
-      } else {
-        asinAllOos++;
-      }
-    }
-  });
-  console.log(`ASIN inventory status: ${asinWithInventory} multi-SKU ASINs have inventory, ${asinAllOos} completely OOS`);
-
-  return asinStatus;
-}
-
 // Helper function to build ASIN to price mapping from All Listings Report
 function buildAsinPriceMap(allListings) {
   const priceMap = new Map();
-
+  
   allListings.forEach(listing => {
     const asin = getColumnValue(listing, 'asin');
     const price = parseFloat(getColumnValue(listing, 'price') || 0);
     const status = getColumnValue(listing, 'status');
-
+    
     // Only use active listings with valid prices
     if (asin && price > 0 && status?.toLowerCase() === 'active') {
       // If multiple SKUs have same ASIN, keep the highest price
@@ -1973,7 +1958,7 @@ function buildAsinPriceMap(allListings) {
       }
     }
   });
-
+  
   console.log(`Built price map with ${priceMap.size} ASINs`);
   return priceMap;
 }
@@ -2173,91 +2158,61 @@ function findSalesForSKU(salesReport, sku, asin, priceMap) {
 
 // Process Excess Inventory
 function processExcessInventory(data) {
-  var results = [];
-  var ageSummary = {
-    days0_90: { units: 0, skuCount: 0 },
-    days91_180: { units: 0, skuCount: 0 },
-    days181_270: { units: 0, skuCount: 0 },
-    days271_365: { units: 0, skuCount: 0 },
-    days365Plus: { units: 0, skuCount: 0 }
-  };
-  var totalInventoryUnits = 0;
+  const results = [];
 
-  data.fbaInventory.forEach(function(item) {
-    var sku = item['sku'] || item['SKU'];
-    if (isInvalidSku(sku)) return;
+  data.fbaInventory.forEach(item => {
+    const sku = item['sku'] || item['SKU'];
 
-    var days0_90 = parseInt(item['inv-age-0-to-90-days'] || item['inv-age-0-90-days'] || 0) || 0;
-    var days91_180 = parseInt(item['inv-age-91-to-180-days'] || item['inv-age-91-180-days'] || 0) || 0;
-    var days181_270 = parseInt(item['inv-age-181-to-270-days'] || item['inv-age-181-270-days'] || 0) || 0;
-    var days271_365 = parseInt(item['inv-age-271-to-365-days'] || item['inv-age-271-365-days'] || 0) || 0;
-    var days365Plus = parseInt(item['inv-age-365-plus-days'] || 0) || 0;
+    // Skip invalid SKUs that contain ".found" or ".missing" patterns
+    if (sku && (String(sku).includes('.found') || String(sku).includes('.missing'))) {
+      return;
+    }
 
-    if (days0_90 > 0) { ageSummary.days0_90.units += days0_90; ageSummary.days0_90.skuCount++; }
-    if (days91_180 > 0) { ageSummary.days91_180.units += days91_180; ageSummary.days91_180.skuCount++; }
-    if (days181_270 > 0) { ageSummary.days181_270.units += days181_270; ageSummary.days181_270.skuCount++; }
-    if (days271_365 > 0) { ageSummary.days271_365.units += days271_365; ageSummary.days271_365.skuCount++; }
-    if (days365Plus > 0) { ageSummary.days365Plus.units += days365Plus; ageSummary.days365Plus.skuCount++; }
+    // Age bucket columns (flexible detection) - only 181+ days (columns K through M)
+    const days181_270 = parseInt(item['inv-age-181-to-270-days'] || item['inv-age-181-270-days'] || item['181-270 days'] || 0);
+    const days271_365 = parseInt(item['inv-age-271-to-365-days'] || item['inv-age-271-365-days'] || item['271-365 days'] || 0);
+    const days365Plus = parseInt(item['inv-age-365-plus-days'] || item['365+ days'] || 0);
 
-    var totalUnits = days0_90 + days91_180 + days181_270 + days271_365 + days365Plus;
-    totalInventoryUnits += totalUnits;
-    var totalAged = days181_270 + days271_365 + days365Plus;
+    const totalAged = days181_270 + days271_365 + days365Plus;
 
-    if (totalUnits > 0) {
-      var priorityScore = (days365Plus * 3) + (days271_365 * 2) + (days181_270 * 1);
+    if (totalAged > 0) {
+      // Calculate priority score (older inventory gets higher score)
+      const priorityScore = (days365Plus * 3) + (days271_365 * 2) + (days181_270 * 1);
+
       results.push({
         sku: sku,
         asin: item['asin1'] || item['asin'] || item['ASIN'],
         title: item['product-name'] || item['Product Name'] || item['title'] || item['item-name'] || item['Title'],
-        days0_90: days0_90,
-        days91_180: days91_180,
         days181_270: days181_270,
         days271_365: days271_365,
         days365Plus: days365Plus,
         totalAgedUnits: totalAged,
-        totalUnits: totalUnits,
         priorityScore: priorityScore,
-        estimatedStorage: totalAged * 0.75,
-        hasAgedInventory: totalAged > 0
+        estimatedStorage: totalAged * 0.75 // Rough estimate
       });
     }
   });
-
-  results.sort(function(a, b) {
-    if (a.days365Plus !== b.days365Plus) return b.days365Plus - a.days365Plus;
-    if (a.days271_365 !== b.days271_365) return b.days271_365 - a.days271_365;
-    if (a.days181_270 !== b.days181_270) return b.days181_270 - a.days181_270;
+  
+  // Sort by oldest inventory first, then by quantity within each age group
+  return results.sort((a, b) => {
+    // First priority: 365+ days (oldest)
+    if (a.days365Plus !== b.days365Plus) {
+      return b.days365Plus - a.days365Plus;
+    }
+    // Second priority: 271-365 days
+    if (a.days271_365 !== b.days271_365) {
+      return b.days271_365 - a.days271_365;
+    }
+    // Third priority: 181-270 days
+    if (a.days181_270 !== b.days181_270) {
+      return b.days181_270 - a.days181_270;
+    }
+    // If all age buckets are equal, sort by total aged units
     return b.totalAgedUnits - a.totalAgedUnits;
   });
-
-  return {
-    items: results,
-    ageSummary: ageSummary,
-    totalInventoryUnits: totalInventoryUnits
-  };
 }
 
-// Process Revenue at Risk (v207 - Fixed reserved inventory handling)
-//
-// PURPOSE: Identifies SKUs that are out of stock but had recent sales (90 days)
-//
-// OUT-OF-STOCK DETECTION (Two methods):
-//   1. Primary: FBA health status column contains "out of stock"
-//   2. Fallback: Available pipeline = 0 (excludes reserved units)
-//
-// CRITICAL FIX (v207): Reserved inventory is NOT counted as available.
-//   - Reserved units are being researched, damaged, or in quality hold
-//   - Only counts: fulfillable + inbound + future supply
-//   - Example: SKU with 0 fulfillable + 5 reserved = OUT OF STOCK
-//
-// SALES REQUIREMENT: Must have units > 0 in T90 business report
-//   - Simplified in v206: No longer requires 365-day sales data
-//
-// GHOST SKU INTEGRATION: Automatically includes SKUs from ghost registry
-//   - Ghost SKUs: In T90 sales but completely missing from FBA inventory
-//   - Registry updated on each load via updateGhostSkuRegistry()
-//
-// RETURNS: Top 10 SKUs sorted by lost revenue per day
+// Process Revenue at Risk
 function processRevenueRisk(data, priceMap, clientId) {
   const results = [];
 
@@ -2280,22 +2235,6 @@ function processRevenueRisk(data, priceMap, clientId) {
     });
   }
 
-  // Build ASIN-to-SKU mapping to detect shared ASINs (multiple SKUs per ASIN)
-  const asinToSkuMap = buildAsinToSkuMap(data.allListings);
-
-  // Build ASIN-level inventory status to filter multi-SKU ASINs where at least one SKU has stock
-  const asinInventoryStatus = buildAsinInventoryStatus(data.allListings, fbaInventoryMap);
-
-  // Helper to check if an ASIN has multiple SKUs (regardless of fulfillment method)
-  const hasSharedAsin = (asin) => {
-    const skuList = asinToSkuMap.get(asin);
-    const isShared = skuList && skuList.length > 1;
-    if (isShared) {
-      console.log(`hasSharedAsin(${asin}) = TRUE - SKUs: ${skuList.map(s => s.sku).join(', ')}`);
-    }
-    return isShared; // Multiple SKUs sharing same ASIN
-  };
-
   console.log(`Processing ${data.allListings.length} listings, ${fbaInventoryMap.size} FBA inventory records`);
 
   // Loop through ALL LISTINGS to discover active FBA SKUs
@@ -2310,7 +2249,7 @@ function processRevenueRisk(data, priceMap, clientId) {
     if (!sku) return;
 
     // Skip invalid SKUs that contain ".found" or ".missing" patterns
-    if (isInvalidSku(sku)) {
+    if (String(sku).includes('.found') || String(sku).includes('.missing')) {
       return;
     }
 
@@ -2362,38 +2301,24 @@ function processRevenueRisk(data, priceMap, clientId) {
     }
 
     // Total pipeline inventory (all inventory that could become available)
-    // NOTE: We include reserved in display but NOT in out-of-stock calculation
     totalPipeline = fulfillableQuantity + reservedQuantity + inboundWorking + inboundShipped + inboundReceiving + futureSupplyBuyable;
     totalInbound = inboundWorking + inboundShipped + inboundReceiving;
 
-    // Calculate AVAILABLE pipeline (excluding reserved - those are stuck/being researched)
-    const availablePipeline = fulfillableQuantity + inboundWorking + inboundShipped + inboundReceiving + futureSupplyBuyable;
-
-    // FALLBACK: If health status not available or doesn't say out of stock, check AVAILABLE pipeline
-    // Reserved units don't count - they're being researched, damaged, or otherwise unavailable
-    if (!isOutOfStock && availablePipeline === 0) {
+    // FALLBACK: If health status not available or doesn't say out of stock, check pipeline
+    if (!isOutOfStock && totalPipeline === 0) {
       isOutOfStock = true;
     }
 
     // SKU is at risk if out of stock
     if (isOutOfStock) {
-      // ASIN-LEVEL FILTER: Skip if this ASIN has inventory via another FBA SKU
-      // This prevents false positives when one variant is OOS but others are in stock
-      const asinStatus = asinInventoryStatus.get(asin);
-      if (asinStatus && asinStatus.hasInventory) {
-        // This ASIN has at least one SKU with inventory - customer can still buy
-        return; // Skip this OOS SKU
-      }
-
-      // Check if it has recent sales (90 days is sufficient)
+      // Check if it has recent sales
       const sales90Data = findSalesForSKU(data.t90, sku, asin, priceMap);
       const sales365Data = findSalesForSKU(data.t365, sku, asin, priceMap);
 
-      // Flag as at risk if it had ANY sales in last 90 days
-      if (sales90Data && sales90Data.units > 0) {
+      if (sales90Data && sales90Data.revenue > 0 && sales365Data && sales365Data.units > 0) {
         // This SKU is at risk!
         const lostPerDay90 = sales90Data.revenue / 90;
-        const lostPerDay365 = sales365Data ? sales365Data.revenue / 365 : 0;
+        const lostPerDay365 = sales365Data.revenue / 365;
         const lostRevenuePerDay = Math.max(lostPerDay90, lostPerDay365);
 
         // Get better title from FBA inventory if available
@@ -2412,9 +2337,8 @@ function processRevenueRisk(data, priceMap, clientId) {
           sku: sku,
           asin: asin,
           title: displayTitle || '(Product Title Not Available)',
-          status: status, // Add status field for primary SKU selection
           revenue90Days: sales90Data.revenue,
-          revenue365Days: sales365Data ? sales365Data.revenue : 0,
+          revenue365Days: sales365Data.revenue,
           lostRevenuePerDay: lostRevenuePerDay,
           fulfillableQuantity: fulfillableQuantity,
           reservedQuantity: reservedQuantity,
@@ -2425,144 +2349,14 @@ function processRevenueRisk(data, priceMap, clientId) {
           totalPipeline: totalPipeline,
           futureSupplyBuyable: futureSupplyBuyable,
           reservedFutureSupply: reservedFutureSupply,
-          detectedViaHealthStatus: (healthStatus && healthStatus.toLowerCase().includes('out of stock')),
-          sharedAsin: hasSharedAsin(asin) // Flag for manual review warning
+          detectedViaHealthStatus: (healthStatus && healthStatus.toLowerCase().includes('out of stock'))
         });
       }
     }
   });
 
-  console.log(`Found ${results.length} SKUs at revenue risk from FBA Inventory`);
-
-  // ========================================
-  // INTEGRATE GHOST SKUs
-  // Add SKUs that have sales but are completely missing from FBA Inventory
-  // ========================================
-
-  console.log(`Attempting to load ghost SKUs for client: ${clientId}`);
-  const ghostData = getGhostSkus(clientId);
-  console.log(`Ghost data loaded:`, ghostData);
-  console.log(`Ghost SKUs found: ${ghostData.skus ? ghostData.skus.length : 0}`);
-
-  if (ghostData.skus && ghostData.skus.length > 0) {
-    console.log(`Processing ${ghostData.skus.length} ghost SKUs`);
-    console.log(`Ghost SKU details:`, JSON.stringify(ghostData.skus, null, 2));
-
-    ghostData.skus.forEach(ghost => {
-      // Check if this ghost SKU is already in results (shouldn't be, but just in case)
-      // Only check by SKU, not ASIN - multiple SKUs can share an ASIN legitimately
-      const alreadyExists = results.some(r => r.sku === ghost.sku);
-      if (alreadyExists) {
-        console.log(`Ghost SKU ${ghost.sku} already in results, skipping`);
-        return;
-      }
-
-      // Get fresh sales data for this ghost
-      const sales90Data = findSalesForSKU(data.t90, ghost.sku, ghost.asin, priceMap);
-      const sales365Data = findSalesForSKU(data.t365, ghost.sku, ghost.asin, priceMap);
-
-      // Only include if still has recent sales (90 days is sufficient)
-      if (sales90Data && sales90Data.units > 0) {
-        // ASIN-LEVEL FILTER: Skip if this ASIN has inventory via another FBA SKU
-        const asinStatus = asinInventoryStatus.get(ghost.asin);
-        if (asinStatus && asinStatus.hasInventory) {
-          console.log(`Skipping ghost SKU ${ghost.sku}: ASIN ${ghost.asin} has inventory via other SKU(s)`);
-          return; // Skip this ghost - ASIN has inventory elsewhere
-        }
-
-        const lostPerDay90 = sales90Data.revenue / 90;
-        const lostPerDay365 = sales365Data ? sales365Data.revenue / 365 : 0;
-        const lostRevenuePerDay = Math.max(lostPerDay90, lostPerDay365);
-
-        // Try to get title from All Listings or use stored title
-        let displayTitle = ghost.title || '';
-        if (!displayTitle) {
-          const listing = data.allListings.find(l =>
-            getColumnValue(l, 'sku') === ghost.sku ||
-            getColumnValue(l, 'asin') === ghost.asin
-          );
-          if (listing) {
-            displayTitle = getColumnValue(listing, 'itemName') || '';
-          }
-        }
-
-        console.log(`Adding ghost SKU ${ghost.sku} with $${lostRevenuePerDay.toFixed(2)}/day lost revenue`);
-
-        results.push({
-          sku: ghost.sku,
-          asin: ghost.asin,
-          title: displayTitle || '(Product Title Not Available)',
-          revenue90Days: sales90Data.revenue,
-          revenue365Days: sales365Data ? sales365Data.revenue : 0,
-          lostRevenuePerDay: lostRevenuePerDay,
-          fulfillableQuantity: 0,
-          reservedQuantity: 0,
-          inboundWorking: 0,
-          inboundShipped: 0,
-          inboundReceiving: 0,
-          totalInbound: 0,
-          totalPipeline: 0,
-          futureSupplyBuyable: 0,
-          reservedFutureSupply: 0,
-          detectedViaHealthStatus: false,
-          isGhost: true, // Flag this as a ghost SKU
-          sharedAsin: hasSharedAsin(ghost.asin) // Flag for manual review warning
-        });
-      } else {
-        console.log(`Ghost SKU ${ghost.sku} no longer has recent sales, will be cleaned up`);
-      }
-    });
-  }
-
-  console.log(`Total revenue at risk SKUs (including ghosts): ${results.length}`);
-
-  // Group results by ASIN to identify multi-SKU ASINs where ALL are OOS
-  const asinGroups = new Map();
-  results.forEach(result => {
-    if (!asinGroups.has(result.asin)) {
-      asinGroups.set(result.asin, []);
-    }
-    asinGroups.get(result.asin).push(result);
-  });
-
-  // Filter: For multi-SKU ASINs where ALL are OOS, only show the primary SKU
-  const filteredResults = [];
-  asinGroups.forEach((skuList, asin) => {
-    if (skuList.length > 1) {
-      // Multiple OOS SKUs share this ASIN - select and keep only the primary
-      // Include revenue in SKU objects for better primary selection
-      const skuObjects = skuList.map(r => ({
-        sku: r.sku,
-        asin: r.asin,
-        status: r.status || 'active',
-        revenue90Days: r.revenue90Days
-      }));
-
-      const primarySku = selectPrimarySku(skuObjects, data);
-
-      // Find the primary result and add metadata
-      const primaryResult = skuList.find(r => r.sku === primarySku);
-      if (primaryResult) {
-        primaryResult.isPrimary = true;
-        primaryResult.otherOosSkus = skuList
-          .filter(r => r.sku !== primarySku)
-          .map(r => r.sku);
-        primaryResult.totalOosSiblings = skuList.length;
-        // Aggregate revenue from all OOS SKUs for this ASIN
-        primaryResult.combinedRevenue90Days = skuList.reduce((sum, r) => sum + r.revenue90Days, 0);
-        primaryResult.combinedLostRevenuePerDay = skuList.reduce((sum, r) => sum + r.lostRevenuePerDay, 0);
-        filteredResults.push(primaryResult);
-      }
-
-      console.log(`ASIN ${asin} has ${skuList.length} OOS SKUs - showing primary: ${primarySku}`);
-    } else {
-      // Only one SKU for this ASIN - keep it
-      skuList[0].isPrimary = true;
-      filteredResults.push(skuList[0]);
-    }
-  });
-
-  return filteredResults.sort((a, b) => b.lostRevenuePerDay - a.lostRevenuePerDay).slice(0, 10);
+  console.log(`Found ${results.length} SKUs at revenue risk`);
+  return results.sort((a, b) => b.lostRevenuePerDay - a.lostRevenuePerDay).slice(0, 10);
 }
 
 // Process SKU Trends
@@ -2573,7 +2367,7 @@ function processSKUTrends(data, priceMap) {
     const sku = item['sku'] || item['SKU'];
 
     // Skip invalid SKUs that contain ".found" or ".missing" patterns
-    if (isInvalidSku(sku)) {
+    if (sku && (String(sku).includes('.found') || String(sku).includes('.missing'))) {
       return;
     }
 
@@ -2649,7 +2443,7 @@ function processSKUTrendsAnalysis(data, priceMap, awdInventoryMap = new Map()) {
     }
 
     // Skip invalid SKUs that contain ".found" or ".missing" patterns
-    if (isInvalidSku(sku)) {
+    if (sku && (String(sku).includes('.found') || String(sku).includes('.missing'))) {
       return;
     }
 
@@ -2686,7 +2480,7 @@ function processSKUTrendsAnalysis(data, priceMap, awdInventoryMap = new Map()) {
     const price = parseFloat(getColumnValue(listing, 'price') || 0);
 
     // Skip invalid SKUs that contain ".found" or ".missing" patterns
-    if (isInvalidSku(sku)) {
+    if (sku && (String(sku).includes('.found') || String(sku).includes('.missing'))) {
       return;
     }
 
@@ -2712,7 +2506,7 @@ function processSKUTrendsAnalysis(data, priceMap, awdInventoryMap = new Map()) {
     const price = parseFloat(item['your-price'] || item['Price'] || 0);
 
     // Skip invalid SKUs that contain ".found" or ".missing" patterns
-    if (isInvalidSku(sku)) {
+    if (sku && (String(sku).includes('.found') || String(sku).includes('.missing'))) {
       console.log(`Skipping invalid SKU with pattern: ${sku}`);
       return;
     }
@@ -3004,11 +2798,12 @@ function processSKUTrendsAnalysis(data, priceMap, awdInventoryMap = new Map()) {
             0
           );
 
-          const inboundWorking = parseInt(fbaItem['afn-inbound-working-quantity'] || fbaItem['inbound-working'] || 0);
+          // EXCLUDED: afn-inbound-working-quantity - shipments created but NOT yet shipped (still at seller's warehouse)
+          // Only count inventory that is actually in transit or at Amazon
           const inboundShipped = parseInt(fbaItem['afn-inbound-shipped-quantity'] || fbaItem['inbound-shipped'] || 0);
           const inboundReceiving = parseInt(fbaItem['afn-inbound-receiving-quantity'] || fbaItem['inbound-received'] || 0);
 
-          let totalInbound = inboundWorking + inboundShipped + inboundReceiving;
+          let totalInbound = inboundShipped + inboundReceiving;
 
           // If individual inbound columns not found, try aggregate inbound-quantity column
           if (totalInbound === 0 && fbaItem['inbound-quantity']) {
@@ -3095,11 +2890,11 @@ function processSKUTrendsAnalysis(data, priceMap, awdInventoryMap = new Map()) {
     }
   });
   
-  // Sort by 90-day units sold (highest first)
+  // Sort by 90-day revenue (highest first)
   results.sort((a, b) => {
-    const aUnits = a.units90 || a.units365 || 0;
-    const bUnits = b.units90 || b.units365 || 0;
-    return bUnits - aUnits;
+    const aRevenue = a.revenue90 || a.revenue365;
+    const bRevenue = b.revenue90 || b.revenue365;
+    return bRevenue - aRevenue;
   });
   
   // Calculate revenue percentiles
@@ -3153,10 +2948,311 @@ function processSKUTrendsAnalysis(data, priceMap, awdInventoryMap = new Map()) {
   return results;
 }
 
+// Debug Reflux Gourmet trend calculations
+function debugRefluxTrends() {
+  try {
+    const clientId = 'refluxgourmet';
+    console.log('=== DEBUGGING REFLUX GOURMET TRENDS ===');
+    
+    const clientConfig = loadClientConfig(clientId, true);
+    const data = {
+      t365: getSheetData('t365', clientConfig),
+      t90: getSheetData('t90', clientConfig),
+      t60: getSheetData('t60', clientConfig),
+      t30: getSheetData('t30', clientConfig)
+    };
+    
+    console.log('Sales data loaded:');
+    console.log(`- T365: ${data.t365?.length || 0} rows`);
+    console.log(`- T90: ${data.t90?.length || 0} rows`);
+    console.log(`- T60: ${data.t60?.length || 0} rows`);
+    console.log(`- T30: ${data.t30?.length || 0} rows`);
+    
+    // Check the key ASINs from the dashboard
+    const targetAsins = [
+      'B086ZYPWQK', // RG-11
+      'B07NKNL3RJ', // RG-01
+      'B08Z6HBVJP', // RG-23
+      'B0CLSCMSR6', // RG-31-FBA
+      'B0CLSTNLNJ'  // RG-32-FBA
+    ];
+    
+    // Helper function to find sales for an ASIN
+    function findSalesForASIN(salesData, targetAsin) {
+      if (!salesData || salesData.length === 0) return null;
+      
+      let totalUnits = 0;
+      let totalRevenue = 0;
+      
+      salesData.forEach(row => {
+        const childAsin = row['(Child) ASIN'] || row['Child ASIN'];
+        if (childAsin === targetAsin) {
+          const units = parseInt(row['Units Ordered - Sales Channel'] || row['Units Ordered'] || 0);
+          const revenue = parseFloat((row['Product Sales - Sales Channel'] || row['Ordered Product Sales'] || '0').toString().replace(/[$,]/g, ''));
+          totalUnits += units;
+          totalRevenue += revenue;
+        }
+      });
+      
+      return totalUnits > 0 ? { units: totalUnits, revenue: totalRevenue } : null;
+    }
+    
+    targetAsins.forEach(asin => {
+      console.log(`\\n=== ASIN ${asin} ===`);
+      
+      // Get sales for each period
+      const sales365 = findSalesForASIN(data.t365, asin);
+      const sales90 = findSalesForASIN(data.t90, asin);
+      const sales60 = findSalesForASIN(data.t60, asin);
+      const sales30 = findSalesForASIN(data.t30, asin);
+      
+      console.log(`T365: ${sales365?.units || 0} units, $${sales365?.revenue || 0}`);
+      console.log(`T90:  ${sales90?.units || 0} units, $${sales90?.revenue || 0}`);
+      console.log(`T60:  ${sales60?.units || 0} units, $${sales60?.revenue || 0}`);
+      console.log(`T30:  ${sales30?.units || 0} units, $${sales30?.revenue || 0}`);
+      
+      // Calculate the 30-day periods like the dashboard does
+      const units1_30 = sales30?.units || 0;
+      const units31_60 = Math.max(0, (sales60?.units || 0) - units1_30);
+      const units61_90 = Math.max(0, (sales90?.units || 0) - (sales60?.units || 0));
+      
+      console.log(`Period breakdown:`);
+      console.log(`- Days 1-30:  ${units1_30} units`);
+      console.log(`- Days 31-60: ${units31_60} units`);
+      console.log(`- Days 61-90: ${units61_90} units`);
+      
+      // Calculate percentage change
+      let percentChange = 0;
+      if (units31_60 > 0) {
+        percentChange = ((units1_30 - units31_60) / units31_60) * 100;
+      } else if (units1_30 > 0) {
+        percentChange = 100;
+      }
+      
+      console.log(`Calculated % change: ${percentChange.toFixed(1)}%`);
+    });
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error('Debug error:', error);
+    return { error: error.toString() };
+  }
+}
 
 // Debug function for Reflux Gourmet ASIN conflicts
+function debugRefluxGourmet() {
+  try {
+    const clientId = 'refluxgourmet';
+    console.log('=== DEBUGGING REFLUX GOURMET ===');
+    
+    // Get client config
+    const clientConfig = loadClientConfig(clientId, true);
+    if (!clientConfig) {
+      return { error: 'No client config found' };
+    }
+    
+    console.log('Client config loaded successfully');
+    
+    // Get data
+    const data = {
+      allListings: getSheetData('all-listings', clientConfig),
+      fbaInventory: getSheetData('fba-inventory', clientConfig),
+      t365: getSheetData('t365', clientConfig),
+      t90: getSheetData('t90', clientConfig),
+      t60: getSheetData('t60', clientConfig),
+      t30: getSheetData('t30', clientConfig)
+    };
+    
+    console.log('Data loaded:');
+    console.log(`- All Listings: ${data.allListings?.length || 0} rows`);
+    console.log(`- FBA Inventory: ${data.fbaInventory?.length || 0} rows`);
+    console.log(`- T365: ${data.t365?.length || 0} rows`);
+    console.log(`- T90: ${data.t90?.length || 0} rows`);
+    console.log(`- T60: ${data.t60?.length || 0} rows`);
+    console.log(`- T30: ${data.t30?.length || 0} rows`);
+    
+    // Check All Listings structure - focus on active FBA SKUs
+    console.log('\\n=== ACTIVE FBA SKUs ===');
+    const activeFbaSkus = new Set();
+    const skuToAsinMap = new Map();
+    
+    if (data.allListings && data.allListings.length > 0) {
+      data.allListings.forEach(listing => {
+        const sku = getColumnValue(listing, 'sku');
+        const status = getColumnValue(listing, 'status');
+        const fulfillment = getColumnValue(listing, 'fulfillmentChannel');
+        const asin = getColumnValue(listing, 'asin');
+        
+        if (sku && status && fulfillment && asin) {
+          if (status.toLowerCase() === 'active' && fulfillment === 'AMAZON_NA') {
+            activeFbaSkus.add(sku);
+            skuToAsinMap.set(sku, asin);
+            console.log(`Active FBA SKU: ${sku} -> ASIN: ${asin}`);
+          }
+        }
+      });
+    }
+    
+    console.log(`Total Active FBA SKUs: ${activeFbaSkus.size}`);
+    
+    // Check T365 sales data and ASIN matching
+    console.log('\\n=== T365 SALES DATA MATCHING ===');
+    if (data.t365 && data.t365.length > 0) {
+      console.log('First T365 row keys:', Object.keys(data.t365[0]));
+      
+      // Track sales by ASIN
+      const salesByAsin = new Map();
+      
+      data.t365.forEach((row, index) => {
+        const childAsin = row['(Child) ASIN'] || row['Child ASIN'];
+        const units = parseInt(row['Units Ordered - Sales Channel'] || row['Units Ordered'] || 0);
+        const revenue = parseFloat((row['Product Sales - Sales Channel'] || row['Ordered Product Sales'] || '0').toString().replace(/[$,]/g, ''));
+        
+        if (childAsin && units > 0) {
+          if (!salesByAsin.has(childAsin)) {
+            salesByAsin.set(childAsin, { units: 0, revenue: 0 });
+          }
+          const current = salesByAsin.get(childAsin);
+          current.units += units;
+          current.revenue += revenue;
+          
+          if (index < 5) {
+            console.log(`T365 Row ${index + 1}: ASIN ${childAsin}, Units: ${units}, Revenue: $${revenue}`);
+          }
+        }
+      });
+      
+      console.log(`\\nFound sales data for ${salesByAsin.size} ASINs`);
+      
+      // Check if any of our active FBA SKUs have sales data
+      let matchedSkus = 0;
+      skuToAsinMap.forEach((asin, sku) => {
+        if (salesByAsin.has(asin)) {
+          const sales = salesByAsin.get(asin);
+          console.log(`✓ SKU ${sku} (${asin}) has sales: ${sales.units} units, $${sales.revenue}`);
+          matchedSkus++;
+        } else {
+          console.log(`✗ SKU ${sku} (${asin}) has NO sales data`);
+        }
+      });
+      
+      console.log(`\\nMatched ${matchedSkus}/${activeFbaSkus.size} active FBA SKUs with sales data`);
+    }
+    
+    // Test the actual function with debug logging
+    console.log('\\n=== TESTING PROCESSSKUTRENDSANALYSIS ===');
+    const priceMap = buildAsinPriceMap(data.allListings);
+    const results = processSKUTrendsAnalysis(data, priceMap);
+    
+    console.log(`Final results: ${results.length} SKUs`);
+    
+    return {
+      activeFbaSkusCount: activeFbaSkus.size,
+      salesDataCount: data.t365?.length || 0,
+      resultsCount: results.length,
+      activeSkus: Array.from(activeFbaSkus),
+      results: results.slice(0, 3)
+    };
+    
+  } catch (error) {
+    console.error('Debug error:', error);
+    return { error: error.toString(), stack: error.stack };
+  }
+}
 
 // Debug Red Dot trend calculations
+function debugRedDotTrends() {
+  try {
+    const clientId = 'reddot';
+    console.log('=== DEBUGGING RED DOT LASER ENGRAVING TRENDS ===');
+
+    const clientConfig = loadClientConfig(clientId, true);
+    const data = {
+      t365: getSheetData('t365', clientConfig),
+      t90: getSheetData('t90', clientConfig),
+      t60: getSheetData('t60', clientConfig),
+      t30: getSheetData('t30', clientConfig)
+    };
+
+    console.log('Sales data loaded:');
+    console.log(`- T365: ${data.t365?.length || 0} rows`);
+    console.log(`- T90: ${data.t90?.length || 0} rows`);
+    console.log(`- T60: ${data.t60?.length || 0} rows`);
+    console.log(`- T30: ${data.t30?.length || 0} rows`);
+
+    // Check the top ASINs from the dashboard data provided
+    const targetAsins = [
+      'B07YNT8YXV', // Anniversary Pocket Watch
+      'B07B2KHPRF', // I Love You Card
+      'B08B5LMFC5', // Wallet Card for Dad
+      'B0BWZRHJP1', // Pocket Watch with Chain
+      'B09QH1Y1K6'  // Key Chain
+    ];
+
+    // Helper function to find sales for an ASIN
+    function findSalesForASIN(salesData, targetAsin) {
+      if (!salesData || salesData.length === 0) return null;
+
+      let totalUnits = 0;
+      let totalRevenue = 0;
+
+      salesData.forEach(row => {
+        const childAsin = row['(Child) ASIN'] || row['Child ASIN'];
+        if (childAsin === targetAsin) {
+          const units = parseInt(row['Units Ordered - Sales Channel'] || row['Units Ordered'] || 0);
+          const revenue = parseFloat((row['Product Sales - Sales Channel'] || row['Ordered Product Sales'] || '0').toString().replace(/[$,]/g, ''));
+          totalUnits += units;
+          totalRevenue += revenue;
+        }
+      });
+
+      return totalUnits > 0 ? { units: totalUnits, revenue: totalRevenue } : null;
+    }
+
+    targetAsins.forEach(asin => {
+      console.log(`\\n=== ASIN ${asin} ===`);
+
+      // Get sales for each period
+      const sales365 = findSalesForASIN(data.t365, asin);
+      const sales90 = findSalesForASIN(data.t90, asin);
+      const sales60 = findSalesForASIN(data.t60, asin);
+      const sales30 = findSalesForASIN(data.t30, asin);
+
+      console.log(`T365: ${sales365?.units || 0} units, $${sales365?.revenue || 0}`);
+      console.log(`T90:  ${sales90?.units || 0} units, $${sales90?.revenue || 0}`);
+      console.log(`T60:  ${sales60?.units || 0} units, $${sales60?.revenue || 0}`);
+      console.log(`T30:  ${sales30?.units || 0} units, $${sales30?.revenue || 0}`);
+
+      // Calculate the 30-day periods like the dashboard does
+      const units1_30 = sales30?.units || 0;
+      const units31_60 = Math.max(0, (sales60?.units || 0) - units1_30);
+      const units61_90 = Math.max(0, (sales90?.units || 0) - (sales60?.units || 0));
+
+      console.log(`Period breakdown:`);
+      console.log(`- Days 1-30:  ${units1_30} units`);
+      console.log(`- Days 31-60: ${units31_60} units`);
+      console.log(`- Days 61-90: ${units61_90} units`);
+
+      // Calculate percentage change
+      let percentChange = 0;
+      if (units31_60 > 0) {
+        percentChange = ((units1_30 - units31_60) / units31_60) * 100;
+      } else if (units1_30 > 0) {
+        percentChange = 100;
+      }
+
+      console.log(`Calculated % change: ${percentChange.toFixed(1)}%`);
+      console.log(`PROBLEM: units31_60 is ${units31_60}, which causes ${units1_30 > 0 ? '100%' : '0%'} when it should be calculated differently`);
+    });
+
+    return { success: true };
+
+  } catch (error) {
+    console.error('Debug error:', error);
+    return { error: error.toString() };
+  }
+}
 
 // Process LILF Monitor
 function processLILFMonitor(data) {
@@ -3181,7 +3277,7 @@ function processLILFMonitor(data) {
     const sku = item['sku'] || item['SKU'];
 
     // Skip invalid SKUs that contain ".found" or ".missing" patterns
-    if (isInvalidSku(sku)) {
+    if (sku && (String(sku).includes('.found') || String(sku).includes('.missing'))) {
       return;
     }
 
@@ -3722,6 +3818,67 @@ function generateActionableRecommendations(items, alerts, metrics) {
 }
 
 // Quick focused debug for ASIN sales
+function quickDebugASINSales(clientId, targetSku) {
+  try {
+    // Get client configuration first
+    const config = loadClientConfig(clientId);
+    if (!config) {
+      return { error: `Client ${clientId} not found in configuration` };
+    }
+    
+    const allListings = getSheetData(clientId, 'all-listings');
+    const t90 = getSheetData(clientId, 't90');
+    
+    // Find target SKU
+    const targetListing = allListings.find(item => 
+      getColumnValue(item, 'sku') === targetSku
+    );
+    
+    if (!targetListing) {
+      return `SKU ${targetSku} not found`;
+    }
+    
+    const targetAsin = getColumnValue(targetListing, 'asin');
+    
+    // Find all SKUs with this ASIN
+    const skusWithSameAsin = allListings
+      .filter(item => getColumnValue(item, 'asin') === targetAsin)
+      .map(item => ({
+        sku: getColumnValue(item, 'sku'),
+        status: getColumnValue(item, 'status'),
+        fulfillment: getColumnValue(item, 'fulfillmentChannel'),
+        isEligible: getColumnValue(item, 'status')?.toLowerCase() === 'active' && 
+                   getColumnValue(item, 'fulfillmentChannel') === 'AMAZON_NA'
+      }));
+    
+    // Count T90 sales for this ASIN
+    let t90Units = 0;
+    let t90Entries = 0;
+    t90.forEach(row => {
+      const childAsin = row['(Child) ASIN'] || row['Child ASIN'];
+      if (childAsin === targetAsin) {
+        const units = parseInt(row['Units Ordered - Sales Channel'] || row['Units Ordered'] || 0);
+        if (units > 0) {
+          t90Units += units;
+          t90Entries++;
+        }
+      }
+    });
+    
+    return {
+      targetSku: targetSku,
+      targetAsin: targetAsin,
+      skusWithSameAsin: skusWithSameAsin,
+      eligibleSkuCount: skusWithSameAsin.filter(s => s.isEligible).length,
+      t90TotalUnits: t90Units,
+      t90Entries: t90Entries
+    };
+    
+  } catch (error) {
+    return { error: error.toString() };
+  }
+}
+
 // ===== HOLIDAY SEASONALITY FUNCTIONS =====
 
 // Get holiday data from linked sheet
@@ -4135,6 +4292,127 @@ function processSeasonalityForecast(clientId, growthFactor = 1.0) {
 }
 
 // Test holiday forecast
+function testHolidayForecast(clientId) {
+  const result = processSeasonalityForecast(clientId || 'toolstoday', 1.1);
+  console.log('Forecast result:', JSON.stringify(result, null, 2));
+  return result;
+}
+
+// Debug function to verify holiday calculations
+function debugHolidayCalculations(clientId, testSku = null) {
+  console.log('=== HOLIDAY CALCULATION DEBUG ===');
+  
+  try {
+    const growthFactor = 1.0;
+    const clientConfig = loadClientConfig(clientId, true);
+    
+    // Get current inventory
+    const fbaData = getSheetData('fba', clientConfig);
+    const allListings = getSheetData('all-listings', clientConfig);
+    const holidayData = getHolidayData(clientConfig);
+    
+    // Find test SKU in FBA data
+    if (testSku) {
+      const fbaItem = fbaData.find(item => item['sku'] === testSku);
+      if (fbaItem) {
+        console.log(`\nFBA Data for SKU ${testSku}:`);
+        console.log('- Available (afn-fulfillable-quantity):', fbaItem['afn-fulfillable-quantity']);
+        console.log('- Inbound Shipped (afn-inbound-shipped-quantity):', fbaItem['afn-inbound-shipped-quantity']);
+        console.log('- Inbound Receiving (afn-inbound-receiving-quantity):', fbaItem['afn-inbound-receiving-quantity']);
+        
+        const available = parseInt(fbaItem['afn-fulfillable-quantity'] || 0);
+        const inboundShipped = parseInt(fbaItem['afn-inbound-shipped-quantity'] || 0);
+        const inboundReceiving = parseInt(fbaItem['afn-inbound-receiving-quantity'] || 0);
+        const total = available + inboundShipped + inboundReceiving;
+        
+        console.log('- Calculated Total:', total);
+      }
+      
+      // Find ASIN for this SKU
+      const listing = allListings.find(item => 
+        getColumnValue(item, 'sku') === testSku && 
+        getColumnValue(item, 'status')?.toLowerCase() === 'active' &&
+        getColumnValue(item, 'fulfillmentChannel') === 'AMAZON_NA'
+      );
+      
+      if (listing) {
+        const asin = getColumnValue(listing, 'asin');
+        console.log(`\nASIN for SKU ${testSku}: ${asin}`);
+        
+        // Find holiday sales for this ASIN
+        let novUnits = 0, decUnits = 0;
+        
+        if (holidayData.Nov) {
+          const novData = holidayData.Nov.find(row => 
+            (row['(Child) ASIN'] || row['Child ASIN']) === asin
+          );
+          if (novData) {
+            novUnits = parseInt(novData['Units Ordered'] || 0);
+            console.log('\nNovember 2024 Sales:', novUnits);
+          }
+        }
+        
+        if (holidayData.Dec) {
+          const decData = holidayData.Dec.find(row => 
+            (row['(Child) ASIN'] || row['Child ASIN']) === asin
+          );
+          if (decData) {
+            decUnits = parseInt(decData['Units Ordered'] || 0);
+            console.log('December 2024 Sales:', decUnits);
+          }
+        }
+        
+        const totalHolidayUnits = novUnits + decUnits;
+        const holidayDailyVelocity = totalHolidayUnits / 61;
+        const projectedDaily = holidayDailyVelocity * growthFactor;
+        const coverage = projectedDaily > 0 ? total / projectedDaily : 999;
+        const targetUnits = Math.ceil(projectedDaily * 60);
+        const unitsNeeded = Math.max(0, targetUnits - total);
+        
+        console.log('\n=== CALCULATIONS ===');
+        console.log('Total Holiday Units (Nov+Dec 2024):', totalHolidayUnits);
+        console.log('Holiday Daily Velocity:', holidayDailyVelocity.toFixed(2), 'units/day');
+        console.log('Growth Factor:', growthFactor);
+        console.log('Projected Daily (with growth):', projectedDaily.toFixed(2), 'units/day');
+        console.log('Current Inventory:', total);
+        console.log('Coverage Days:', coverage.toFixed(1));
+        console.log('Target Units (60 days):', targetUnits);
+        console.log('Units Needed:', unitsNeeded);
+        
+        // Calculate weekly recommendation
+        const today = new Date();
+        const targetDate = new Date(today.getFullYear(), 9, 31); // Oct 31
+        const weeksUntilTarget = Math.max(1, Math.ceil((targetDate - today) / (7 * 24 * 60 * 60 * 1000)));
+        const weeklyRecommendation = Math.ceil(unitsNeeded / weeksUntilTarget);
+        
+        console.log('Weeks Until Target:', weeksUntilTarget);
+        console.log('Weekly Send Recommendation:', weeklyRecommendation);
+      }
+    }
+    
+    // Also show a few sample calculations
+    console.log('\n=== SAMPLE CALCULATIONS (First 3 SKUs) ===');
+    const result = getHolidayForecast(clientId, growthFactor);
+    if (result.summary && result.summary.topProducts) {
+      result.summary.topProducts.slice(0, 3).forEach(product => {
+        console.log(`\nSKU: ${product.sku}`);
+        console.log(`- Current Inventory: ${product.currentInventory}`);
+        console.log(`- 2024 Holiday Units: ${product.units2024}`);
+        console.log(`- Coverage Days: ${product.coverage}`);
+        console.log(`- Units Needed: ${product.unitsNeeded}`);
+        console.log(`- Weekly Send: ${product.weeklyRecommendation}`);
+      });
+    }
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error('Debug error:', error);
+    return { error: error.toString() };
+  }
+}
+
+// SIMPLIFIED HOLIDAY FORECAST - Returns summary only to avoid size issues
 function getHolidayForecast(clientId, growthFactor) {
   console.log('getHolidayForecast called with clientId:', clientId, 'growthFactor:', growthFactor);
   
@@ -4356,6 +4634,543 @@ function getHolidayForecast(clientId, growthFactor) {
 }
 
 // Test holiday config
+function testHolidayConfig(clientId) {
+  const config = loadClientConfig(clientId || 'toolstoday', true);
+  console.log('Full config:', JSON.stringify(config, null, 2));
+  
+  if (config && config.sheets) {
+    console.log('Holiday URL:', config.sheets['holiday-data']);
+    
+    // Try to open the sheet
+    if (config.sheets['holiday-data']) {
+      try {
+        const sheetUrl = config.sheets['holiday-data'];
+        const sheetIdMatch = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (sheetIdMatch) {
+          const spreadsheet = SpreadsheetApp.openById(sheetIdMatch[1]);
+          console.log('Holiday sheet opened successfully:', spreadsheet.getName());
+          
+          // List all tabs
+          const sheets = spreadsheet.getSheets();
+          console.log('Available tabs:', sheets.map(s => s.getName()));
+        }
+      } catch (e) {
+        console.error('Error opening holiday sheet:', e);
+      }
+    }
+  }
+  
+  return config;
+}
+
+// Test the full holiday forecast pipeline
+function testHolidayForecast() {
+  console.log('=== Testing Holiday Forecast ===');
+  const clientId = 'toolstoday';
+  
+  // Test 1: Load config
+  console.log('1. Testing loadClientConfig...');
+  const config = loadClientConfig(clientId, true);
+  console.log('Config sheets:', config ? Object.keys(config.sheets) : 'null');
+  console.log('Holiday data URL:', config?.sheets?.['holiday-data']);
+  
+  // Test 2: Get holiday data
+  console.log('\n2. Testing getHolidayData...');
+  const holidayData = getHolidayData(config);
+  console.log('Holiday data:', holidayData ? Object.keys(holidayData) : 'null');
+  
+  // Test 3: Run full forecast
+  console.log('\n3. Testing getHolidayForecast...');
+  const forecast = getHolidayForecast(clientId, 1.1);
+  console.log('Forecast result:', forecast);
+  
+  return forecast;
+}
+
+// Test just the size of the holiday forecast result
+function testHolidayForecastSize() {
+  console.log('=== Testing Holiday Forecast Size ===');
+  const clientId = 'toolstoday';
+  
+  try {
+    // Get the raw result
+    const result = processSeasonalityForecast(clientId, 1.1);
+    
+    if (result && result.results) {
+      console.log(`Total SKUs in forecast: ${result.results.length}`);
+      
+      // Estimate the size
+      const jsonString = JSON.stringify(result);
+      const sizeInBytes = new Blob([jsonString]).size;
+      const sizeInKB = (sizeInBytes / 1024).toFixed(2);
+      const sizeInMB = (sizeInBytes / 1024 / 1024).toFixed(2);
+      
+      console.log(`JSON size: ${sizeInKB} KB (${sizeInMB} MB)`);
+      
+      // Test if we can return it through google.script.run
+      const testReturn = getHolidayForecast(clientId, 1.1);
+      console.log('getHolidayForecast returned:', testReturn ? 'success' : 'null');
+      
+      // If it's too large, try with fewer results
+      if (!testReturn && result.results.length > 100) {
+        console.log('Trying with only 100 results...');
+        result.results = result.results.slice(0, 100);
+        const smallerJson = JSON.stringify(result);
+        const smallerSize = (new Blob([smallerJson]).size / 1024).toFixed(2);
+        console.log(`Reduced JSON size: ${smallerSize} KB`);
+      }
+      
+      return {
+        totalSkus: result.results.length,
+        sizeKB: sizeInKB,
+        sizeMB: sizeInMB,
+        testReturnSuccess: !!testReturn
+      };
+    }
+    
+    return { error: 'No results generated' };
+  } catch (error) {
+    console.error('Error:', error);
+    return { error: error.toString() };
+  }
+}
+
+// Debug holiday data mapping issues
+function debugHolidayMapping(clientId) {
+  try {
+    const clientConfig = loadClientConfig(clientId, true);
+    if (!clientConfig) {
+      return { error: 'Client configuration not found' };
+    }
+    
+    // Get holiday data
+    const holidayData = getHolidayData(clientConfig);
+    if (!holidayData) {
+      return { error: 'No holiday data found' };
+    }
+    
+    // Get current inventory data
+    const allListings = getSheetData('all-listings', clientConfig);
+    
+    // Build current ASIN map
+    const currentAsins = new Map();
+    const activeFbaAsins = new Set();
+    
+    allListings.forEach(listing => {
+      const sku = getColumnValue(listing, 'sku');
+      const asin = getColumnValue(listing, 'asin');
+      const status = getColumnValue(listing, 'status');
+      const fulfillment = getColumnValue(listing, 'fulfillmentChannel');
+      
+      if (asin) {
+        if (!currentAsins.has(asin)) {
+          currentAsins.set(asin, []);
+        }
+        currentAsins.get(asin).push({
+          sku: sku,
+          status: status,
+          fulfillment: fulfillment,
+          isActiveFba: status?.toLowerCase() === 'active' && fulfillment === 'AMAZON_NA'
+        });
+        
+        if (status?.toLowerCase() === 'active' && fulfillment === 'AMAZON_NA') {
+          activeFbaAsins.add(asin);
+        }
+      }
+    });
+    
+    // Analyze holiday data
+    const holidayAsins = new Set();
+    const unmatchedHolidayAsins = new Set();
+    const matchedAsins = new Set();
+    let totalHolidayUnits = 0;
+    let matchedUnits = 0;
+    
+    // Check each month
+    ['Aug', 'Sep', 'Oct', 'Nov', 'Dec'].forEach(month => {
+      if (holidayData[month]) {
+        holidayData[month].forEach(row => {
+          const childAsin = row['(Child) ASIN'] || row['Child ASIN'];
+          const units = parseInt(row['Units Ordered'] || 0);
+          
+          if (childAsin && units > 0) {
+            holidayAsins.add(childAsin);
+            totalHolidayUnits += units;
+            
+            if (activeFbaAsins.has(childAsin)) {
+              matchedAsins.add(childAsin);
+              matchedUnits += units;
+            } else {
+              unmatchedHolidayAsins.add(childAsin);
+            }
+          }
+        });
+      }
+    });
+    
+    // Sample unmatched ASINs
+    const unmatchedSamples = [];
+    let sampleCount = 0;
+    unmatchedHolidayAsins.forEach(asin => {
+      if (sampleCount < 10) {
+        // Check if ASIN exists but is not active FBA
+        const currentListing = currentAsins.get(asin);
+        unmatchedSamples.push({
+          asin: asin,
+          existsInCurrent: !!currentListing,
+          currentStatus: currentListing ? currentListing[0] : null
+        });
+        sampleCount++;
+      }
+    });
+    
+    return {
+      summary: {
+        totalHolidayAsins: holidayAsins.size,
+        matchedAsins: matchedAsins.size,
+        unmatchedAsins: unmatchedHolidayAsins.size,
+        matchRate: (matchedAsins.size / holidayAsins.size * 100).toFixed(2) + '%',
+        totalHolidayUnits: totalHolidayUnits,
+        matchedUnits: matchedUnits,
+        unitMatchRate: (matchedUnits / totalHolidayUnits * 100).toFixed(2) + '%'
+      },
+      currentInventory: {
+        totalAsins: currentAsins.size,
+        activeFbaAsins: activeFbaAsins.size
+      },
+      unmatchedSamples: unmatchedSamples,
+      debug: {
+        holidayDataFound: !!holidayData,
+        monthsWithData: Object.keys(holidayData || {})
+      }
+    };
+    
+  } catch (error) {
+    return { error: error.toString() };
+  }
+}
+
+// Run quick debug for FBA-608-116
+function quickDebug608116() {
+  try {
+    console.log('Starting debug for FBA-608-116...');
+    
+    // Directly open the sheets we need
+    const allListingsUrl = 'https://docs.google.com/spreadsheets/d/1YWU34TySe2YVuy9xQgHpILFHfLhUYrZ0TZuoYBk3LaQ/edit?gid=1577247725#gid=1577247725';
+    const t90Url = 'https://docs.google.com/spreadsheets/d/1YWU34TySe2YVuy9xQgHpILFHfLhUYrZ0TZuoYBk3LaQ/edit?gid=1472737647#gid=1472737647';
+    
+    // Extract sheet IDs
+    const allListingsId = '1YWU34TySe2YVuy9xQgHpILFHfLhUYrZ0TZuoYBk3LaQ';
+    const allListingsGid = '1577247725';
+    const t90Gid = '1472737647';
+    
+    // First, let's see what sheets are available
+    const spreadsheet = SpreadsheetApp.openById(allListingsId);
+    const sheets = spreadsheet.getSheets();
+    console.log('Available sheets:');
+    sheets.forEach(sheet => {
+      console.log(`- ${sheet.getName()}`);
+    });
+    
+    // Try to find the right sheets
+    let allListingsSheet = null;
+    let t90Sheet = null;
+    
+    // Look for All Listings sheet
+    sheets.forEach(sheet => {
+      const name = sheet.getName().toLowerCase();
+      if (name.includes('all') && name.includes('listing')) {
+        allListingsSheet = sheet;
+        console.log(`Found All Listings sheet: ${sheet.getName()}`);
+      } else if (name.includes('t90') || (name.includes('90') && name.includes('business'))) {
+        t90Sheet = sheet;
+        console.log(`Found T90 sheet: ${sheet.getName()}`);
+      }
+    });
+    
+    if (!allListingsSheet || !t90Sheet) {
+      return { 
+        error: 'Could not find required sheets',
+        availableSheets: sheets.map(s => s.getName())
+      };
+    }
+    
+    const allListingsData = allListingsSheet.getDataRange().getValues();
+    const t90Data = t90Sheet.getDataRange().getValues();
+    
+    // Convert to objects
+    const allListingsHeaders = allListingsData[0];
+    const allListings = allListingsData.slice(1).map(row => {
+      const obj = {};
+      allListingsHeaders.forEach((header, i) => {
+        obj[header] = row[i];
+      });
+      return obj;
+    });
+    
+    const t90Headers = t90Data[0];
+    const t90 = t90Data.slice(1).map(row => {
+      const obj = {};
+      t90Headers.forEach((header, i) => {
+        obj[header] = row[i];
+      });
+      return obj;
+    });
+    
+    console.log(`Loaded ${allListings.length} All Listings rows`);
+    console.log(`Loaded ${t90.length} T90 rows`);
+    
+    // Find FBA-608-116
+    const targetSku = 'FBA-608-116';
+    const targetListing = allListings.find(item => 
+      getColumnValue(item, 'sku') === targetSku
+    );
+    
+    if (!targetListing) {
+      return { error: `SKU ${targetSku} not found in All Listings` };
+    }
+    
+    const targetAsin = getColumnValue(targetListing, 'asin');
+    console.log(`Found ${targetSku} with ASIN: ${targetAsin}`);
+    
+    // Find all SKUs with this ASIN
+    const skusWithSameAsin = allListings
+      .filter(item => getColumnValue(item, 'asin') === targetAsin)
+      .map(item => ({
+        sku: getColumnValue(item, 'sku'),
+        status: getColumnValue(item, 'status'),
+        fulfillment: getColumnValue(item, 'fulfillmentChannel'),
+        isEligible: getColumnValue(item, 'status')?.toLowerCase() === 'active' && 
+                   getColumnValue(item, 'fulfillmentChannel') === 'AMAZON_NA'
+      }));
+    
+    console.log(`Found ${skusWithSameAsin.length} SKUs with ASIN ${targetAsin}`);
+    
+    // Count T90 sales for this ASIN
+    let t90Units = 0;
+    let t90Entries = 0;
+    t90.forEach(row => {
+      const childAsin = row['(Child) ASIN'] || row['Child ASIN'];
+      if (childAsin === targetAsin) {
+        const units = parseInt(row['Units Ordered - Sales Channel'] || row['Units Ordered'] || 0);
+        if (units > 0) {
+          t90Units += units;
+          t90Entries++;
+          console.log(`Found T90 entry: ${units} units`);
+        }
+      }
+    });
+    
+    const result = {
+      targetSku: targetSku,
+      targetAsin: targetAsin,
+      skusWithSameAsin: skusWithSameAsin,
+      eligibleSkuCount: skusWithSameAsin.filter(s => s.isEligible).length,
+      t90TotalUnits: t90Units,
+      t90Entries: t90Entries
+    };
+    
+    console.log('\n=== RESULT ===');
+    console.log(JSON.stringify(result, null, 2));
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Error:', error.toString());
+    return { error: error.toString() };
+  }
+}
+
+// ===== AUTOMATED TESTING AND CHUNKED DATA DELIVERY =====
+
+/**
+ * Comprehensive automated test suite for holiday forecast
+ * Tests all components of the holiday forecast pipeline
+ */
+function runAutomatedHolidayTests(clientId) {
+  const startTime = new Date();
+  const testResults = {
+    timestamp: startTime.toISOString(),
+    clientId: clientId,
+    tests: [],
+    summary: {
+      total: 0,
+      passed: 0,
+      failed: 0,
+      warnings: 0
+    }
+  };
+  
+  function addTest(name, status, details = {}) {
+    testResults.tests.push({
+      name: name,
+      status: status, // 'pass', 'fail', 'warning'
+      details: details,
+      timestamp: new Date().toISOString()
+    });
+    testResults.summary.total++;
+    testResults.summary[status === 'pass' ? 'passed' : status === 'fail' ? 'failed' : 'warnings']++;
+  }
+  
+  try {
+    // Test 1: Client Configuration
+    console.log('Test 1: Loading client configuration...');
+    const clientConfig = loadClientConfig(clientId, true);
+    if (clientConfig) {
+      addTest('Client Configuration Load', 'pass', {
+        hasHolidayData: !!clientConfig.sheets['holiday-data'],
+        holidayUrl: clientConfig.sheets['holiday-data']
+      });
+    } else {
+      addTest('Client Configuration Load', 'fail', { error: 'Client config not found' });
+      return testResults; // Can't continue without config
+    }
+    
+    // Test 2: Holiday Data Access
+    console.log('Test 2: Testing holiday data access...');
+    try {
+      const holidayData = getHolidayData(clientConfig);
+      if (holidayData) {
+        const monthsFound = Object.keys(holidayData).length;
+        addTest('Holiday Data Access', 'pass', {
+          monthsConfigured: monthsFound,
+          months: Object.keys(holidayData),
+          totalRows: Object.values(holidayData).reduce((sum, month) => sum + (month?.length || 0), 0)
+        });
+      } else {
+        addTest('Holiday Data Access', 'fail', { error: 'No holiday data returned' });
+      }
+    } catch (error) {
+      addTest('Holiday Data Access', 'fail', { error: error.toString() });
+    }
+    
+    // Test 3: Current Data Access
+    console.log('Test 3: Testing current data access...');
+    try {
+      const currentData = {
+        fba: getSheetData('fba', clientConfig),
+        fbaInventory: getSheetData('fba-inventory', clientConfig),
+        allListings: getSheetData('all-listings', clientConfig)
+      };
+      
+      addTest('Current Data Access', 'pass', {
+        fbaRows: currentData.fba?.length || 0,
+        fbaInventoryRows: currentData.fbaInventory?.length || 0,
+        allListingsRows: currentData.allListings?.length || 0
+      });
+    } catch (error) {
+      addTest('Current Data Access', 'fail', { error: error.toString() });
+    }
+    
+    // Test 4: Forecast Processing
+    console.log('Test 4: Testing forecast processing...');
+    try {
+      const forecastResult = processSeasonalityForecast(clientId, 1.1);
+      if (forecastResult && !forecastResult.error) {
+        const resultSize = JSON.stringify(forecastResult).length;
+        const resultSizeKB = (resultSize / 1024).toFixed(2);
+        const isTooLarge = resultSize > 50 * 1024; // 50KB threshold
+        
+        addTest('Forecast Processing', 'pass', {
+          skuCount: forecastResult.results?.length || 0,
+          configured: forecastResult.configured,
+          dataSizeBytes: resultSize,
+          dataSizeKB: resultSizeKB,
+          isTooLarge: isTooLarge,
+          summary: forecastResult.summary
+        });
+        
+        if (isTooLarge) {
+          addTest('Data Size Check', 'warning', {
+            message: 'Result may be too large for google.script.run',
+            sizeKB: resultSizeKB,
+            recommendChunking: true
+          });
+        } else {
+          addTest('Data Size Check', 'pass', { sizeKB: resultSizeKB });
+        }
+      } else {
+        addTest('Forecast Processing', 'fail', {
+          error: forecastResult?.error || 'Unknown error',
+          configured: forecastResult?.configured || false
+        });
+      }
+    } catch (error) {
+      addTest('Forecast Processing', 'fail', { error: error.toString() });
+    }
+    
+    // Test 5: google.script.run Compatibility
+    console.log('Test 5: Testing google.script.run compatibility...');
+    try {
+      const testResult = getHolidayForecast(clientId, 1.1);
+      if (testResult && !testResult.error) {
+        addTest('google.script.run Compatibility', 'pass', {
+          returnedSkus: testResult.results?.length || 0,
+          hasResults: !!testResult.results
+        });
+      } else {
+        addTest('google.script.run Compatibility', 'fail', {
+          error: testResult?.error || 'Function returned null',
+          recommendation: 'Use chunked delivery system'
+        });
+      }
+    } catch (error) {
+      addTest('google.script.run Compatibility', 'fail', { error: error.toString() });
+    }
+    
+    // Test 6: Chunked Delivery System
+    console.log('Test 6: Testing chunked delivery system...');
+    try {
+      const metadata = getHolidayForecastMetadata(clientId, 1.1);
+      const firstChunk = getHolidayForecastChunked(clientId, 1.1, 0, 25);
+      
+      if (metadata && firstChunk) {
+        addTest('Chunked Delivery System', 'pass', {
+          metadataReceived: !!metadata,
+          firstChunkReceived: !!firstChunk,
+          totalChunks: metadata.totalChunks,
+          chunkSize: firstChunk.chunkSize,
+          currentChunk: firstChunk.currentChunk
+        });
+      } else {
+        addTest('Chunked Delivery System', 'fail', {
+          metadataReceived: !!metadata,
+          firstChunkReceived: !!firstChunk
+        });
+      }
+    } catch (error) {
+      addTest('Chunked Delivery System', 'fail', { error: error.toString() });
+    }
+    
+  } catch (error) {
+    addTest('Test Suite Error', 'fail', { error: error.toString() });
+  }
+  
+  // Calculate execution time
+  const endTime = new Date();
+  testResults.executionTimeMs = endTime.getTime() - startTime.getTime();
+  testResults.executionTimeSeconds = (testResults.executionTimeMs / 1000).toFixed(2);
+  
+  // Add recommendations based on test results
+  testResults.recommendations = [];
+  if (testResults.tests.some(t => t.name === 'Data Size Check' && t.status === 'warning')) {
+    testResults.recommendations.push('Use chunked data delivery for large result sets');
+  }
+  if (testResults.tests.some(t => t.name === 'google.script.run Compatibility' && t.status === 'fail')) {
+    testResults.recommendations.push('Implement chunked delivery to handle large datasets');
+  }
+  if (testResults.summary.failed > 0) {
+    testResults.recommendations.push('Review failed tests and fix underlying issues before proceeding');
+  }
+  
+  console.log('Test suite completed:', testResults.summary);
+  return testResults;
+}
+
+/**
+ * Get holiday forecast metadata without the full data
+ * This returns summary information and chunk details
+ */
 function getHolidayForecastMetadata(clientId, growthFactor = 1.0) {
   try {
     const result = processSeasonalityForecast(clientId, growthFactor);
@@ -4474,4 +5289,271 @@ function getHolidayForecastSafe(clientId, growthFactor) {
 }
 
 // Debug function to test each RTIC sheet individually
+function debugRTICSheets() {
+  console.log('=== RTIC SHEETS DEBUG ===');
+  
+  const results = {};
+  
+  try {
+    // Load config
+    const config = loadClientConfig('rtic', true);
+    if (!config) {
+      return { error: 'Config not found' };
+    }
+    
+    results.config = {
+      found: true,
+      displayName: config.displayName,
+      sheets: Object.keys(config.sheets)
+    };
+    
+    // Test each sheet type individually
+    const sheetTypes = ['t7', 't30', 't60', 't90', 't180', 't365', 'fba', 'fba-inventory', 'all-listings'];
+    
+    sheetTypes.forEach(sheetType => {
+      console.log(`\nTesting ${sheetType}...`);
+      try {
+        const data = getSheetData(sheetType, config);
+        results[sheetType] = {
+          success: true,
+          rows: data ? data.length : 0,
+          columns: data && data.length > 0 ? Object.keys(data[0]).slice(0, 10) : []
+        };
+        console.log(`${sheetType}: SUCCESS - ${data ? data.length : 0} rows`);
+      } catch (error) {
+        results[sheetType] = {
+          success: false,
+          error: error.message
+        };
+        console.error(`${sheetType}: FAILED - ${error.message}`);
+      }
+    });
+
+  } catch (error) {
+    return {
+      error: error.message,
+      stack: error.stack
+    };
+  }
+
+  return results;
+}
+
 // DEBUG FUNCTION - Check AWD vs FBA inventory for refluxgourmet RG-11
+function debugRefluxGourmetRG11() {
+  const clientId = 'refluxgourmet';
+  const config = loadClientConfig(clientId);
+
+  if (!config) {
+    console.log('Could not load client config');
+    return;
+  }
+
+  console.log('=== DEBUGGING RG-11 INVENTORY ===');
+
+  // First, check the FBA sheet (22 columns) - this is what SKU Trends uses
+  const fbaUrl = config.sheets['fba'];
+  if (fbaUrl) {
+    console.log('\n=== CHECKING FBA SHEET (22 columns) ===');
+    console.log('FBA URL:', fbaUrl);
+
+    const fbaSheetIdMatch = fbaUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    const fbaGidMatch = fbaUrl.match(/[#&]gid=([0-9]+)/);
+
+    if (fbaSheetIdMatch) {
+      const ss = SpreadsheetApp.openById(fbaSheetIdMatch[1]);
+      let sheet;
+
+      if (fbaGidMatch) {
+        const sheets = ss.getSheets();
+        sheet = sheets.find(s => s.getSheetId().toString() === fbaGidMatch[1]);
+      } else {
+        sheet = ss.getSheets()[0];
+      }
+
+      if (sheet) {
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0];
+
+        console.log('FBA Sheet Headers:', headers);
+
+        const skuCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('sku'));
+        const rg11Row = data.find(row => row[skuCol] === 'RG-11');
+
+        if (rg11Row) {
+          console.log('\n=== RG-11 IN FBA SHEET ===');
+          headers.forEach((header, index) => {
+            if (rg11Row[index]) {
+              console.log(`  ${header}: ${rg11Row[index]}`);
+            }
+          });
+        } else {
+          console.log('RG-11 not found in FBA sheet');
+        }
+      }
+    }
+  }
+
+  // Load FBA Inventory sheet (90 columns)
+  console.log('\n=== CHECKING FBA INVENTORY SHEET (90 columns) ===');
+  const fbaInvUrl = config.sheets['fba-inventory'];
+  console.log('FBA Inventory URL:', fbaInvUrl);
+
+  const sheetIdMatch = fbaInvUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  const gidMatch = fbaInvUrl.match(/[#&]gid=([0-9]+)/);
+
+  if (sheetIdMatch) {
+    const ss = SpreadsheetApp.openById(sheetIdMatch[1]);
+    let sheet;
+
+    if (gidMatch) {
+      const sheets = ss.getSheets();
+      sheet = sheets.find(s => s.getSheetId().toString() === gidMatch[1]);
+    } else {
+      sheet = ss.getSheets()[0];
+    }
+
+    if (sheet) {
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+
+      console.log('FBA Inventory Headers:', headers);
+
+      // Find column indices
+      const skuCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('sku'));
+      const warehouseCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('afn-warehouse-quantity'));
+      const totalCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('afn-total-quantity'));
+      const availableCol = headers.findIndex(h => h && h.toString().toLowerCase() === 'available');
+      const inboundQtyCol = headers.findIndex(h => h && h.toString().toLowerCase() === 'inbound-quantity');
+      const inboundWorkingCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('inbound-working'));
+      const inboundShippedCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('inbound-shipped'));
+      const inboundReceivingCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('inbound-received'));
+      const fulfillableCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('afn-fulfillable'));
+      const reservedCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('reserved'));
+
+      console.log('Column indices:');
+      console.log('  SKU:', skuCol);
+      console.log('  Warehouse (afn-warehouse-quantity):', warehouseCol);
+      console.log('  Total (afn-total-quantity):', totalCol);
+      console.log('  Available:', availableCol);
+      console.log('  Inbound Quantity:', inboundQtyCol);
+      console.log('  Fulfillable:', fulfillableCol);
+      console.log('  Reserved:', reservedCol);
+      console.log('  Inbound Working:', inboundWorkingCol);
+      console.log('  Inbound Shipped:', inboundShippedCol);
+      console.log('  Inbound Receiving:', inboundReceivingCol);
+
+      // Find RG-11
+      const rg11Row = data.find(row => row[skuCol] === 'RG-11');
+
+      if (rg11Row) {
+        console.log('\n=== RG-11 FBA INVENTORY RAW VALUES ===');
+        console.log('Available (column 6):', rg11Row[availableCol]);
+        console.log('Inbound Quantity (column 52):', rg11Row[inboundQtyCol]);
+        console.log('Inbound Working (column 53):', rg11Row[inboundWorkingCol]);
+        console.log('Inbound Shipped (column 54):', rg11Row[inboundShippedCol]);
+        console.log('Inbound Received (column 55):', rg11Row[inboundReceivingCol]);
+        console.log('Total Reserved Quantity (column 57):', rg11Row[reservedCol]);
+        console.log('Inventory Supply at FBA (column 84):', rg11Row[headers.findIndex(h => h === 'Inventory Supply at FBA')]);
+
+        const available = parseInt(rg11Row[availableCol] || 0);
+        const inboundQty = parseInt(rg11Row[inboundQtyCol] || 0);
+        const inboundWorking = parseInt(rg11Row[inboundWorkingCol] || 0);
+        const inboundShipped = parseInt(rg11Row[inboundShippedCol] || 0);
+        const inboundReceiving = parseInt(rg11Row[inboundReceivingCol] || 0);
+        const reserved = parseInt(rg11Row[reservedCol] || 0);
+        const inventorySupply = parseInt(rg11Row[headers.findIndex(h => h === 'Inventory Supply at FBA')] || 0);
+
+        console.log('\n=== CALCULATED FBA TOTALS ===');
+        console.log('Using Available column:', available);
+        console.log('Using Inbound Quantity column:', inboundQty);
+        console.log('Using Inventory Supply at FBA:', inventorySupply);
+        console.log('Total (Available + Inbound):', available + inboundQty);
+        console.log('Total with Working/Shipped/Received:', available + inboundWorking + inboundShipped + inboundReceiving);
+      } else {
+        console.log('RG-11 not found in FBA Inventory');
+      }
+    }
+  }
+
+  // Load AWD sheet
+  const awdUrl = config.sheets['awd'];
+  if (awdUrl) {
+    console.log('\n=== AWD INVENTORY ===');
+    console.log('AWD URL:', awdUrl);
+
+    const awdSheetIdMatch = awdUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    const awdGidMatch = awdUrl.match(/[#&]gid=([0-9]+)/);
+
+    if (awdSheetIdMatch) {
+      const ss = SpreadsheetApp.openById(awdSheetIdMatch[1]);
+      let sheet;
+
+      if (awdGidMatch) {
+        const sheets = ss.getSheets();
+        sheet = sheets.find(s => s.getSheetId().toString() === awdGidMatch[1]);
+      } else {
+        sheet = ss.getSheets()[0];
+      }
+
+      if (sheet) {
+        const rawData = sheet.getDataRange().getValues();
+        const headers = rawData[3]; // AWD headers are in row 4
+
+        console.log('AWD Headers:', headers);
+
+        const skuCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('sku') && !h.toString().toLowerCase().includes('fnsku'));
+        const inboundCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('inbound to awd (units)'));
+        const availableCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('available in awd (units)'));
+        const reservedCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('reserved in awd'));
+        const outboundCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('outbound to fba'));
+        const availableInFbaCol = headers.findIndex(h => h && h.toString().toLowerCase().includes('available in fba'));
+
+        console.log('\nAWD Column indices:');
+        console.log('  SKU:', skuCol);
+        console.log('  Inbound to AWD:', inboundCol);
+        console.log('  Available in AWD:', availableCol);
+        console.log('  Reserved in AWD:', reservedCol);
+        console.log('  Outbound to FBA:', outboundCol);
+        console.log('  Available in FBA:', availableInFbaCol);
+
+        // Find RG-11 (data starts at row 5, index 4)
+        let rg11Row = null;
+        for (let i = 4; i < rawData.length; i++) {
+          if (rawData[i][skuCol] === 'RG-11') {
+            rg11Row = rawData[i];
+            break;
+          }
+        }
+
+        if (rg11Row) {
+          console.log('\n=== RG-11 AWD INVENTORY ===');
+          console.log('Inbound to AWD:', rg11Row[inboundCol]);
+          console.log('Available in AWD:', rg11Row[availableCol]);
+          console.log('Reserved in AWD:', rg11Row[reservedCol]);
+          console.log('Outbound to FBA:', rg11Row[outboundCol]);
+          console.log('Available in FBA:', rg11Row[availableInFbaCol]);
+
+          const inbound = parseInt(rg11Row[inboundCol] || 0);
+          const available = parseInt(rg11Row[availableCol] || 0);
+          const reserved = parseInt(rg11Row[reservedCol] || 0);
+          const outbound = parseInt(rg11Row[outboundCol] || 0);
+          const availableInFba = parseInt(rg11Row[availableInFbaCol] || 0);
+
+          console.log('\nAWD Calculation (Current):');
+          console.log('  AWD Total = Inbound (' + inbound + ') + Available (' + available + ') = ' + (inbound + available));
+          console.log('  EXCLUDED: Reserved (' + reserved + ') + Outbound (' + outbound + ')');
+
+          console.log('\n=== ANALYSIS ===');
+          console.log('Question: Are the ' + outbound + ' "Outbound to FBA" units included in FBA inventory?');
+          console.log('If YES → Current calculation is correct (no double-counting)');
+          console.log('If NO → We are undercounting by ' + (reserved + outbound) + ' units');
+        } else {
+          console.log('RG-11 not found in AWD sheet');
+        }
+      }
+    }
+  }
+
+  console.log('\n=== DEBUG COMPLETE ===');
+}
