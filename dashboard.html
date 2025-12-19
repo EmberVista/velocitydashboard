@@ -1102,15 +1102,23 @@
       const changes = dashboardData.changes || {};
       
       // Helper function to create change indicator
-      function createChangeIndicator(value, change, isRevenue = false) {
+      // invertColors: true for "bad" metrics where increase = bad (Excess, Revenue Risk, LILF)
+      function createChangeIndicator(value, change, isRevenue = false, invertColors = false) {
         if (changes.isFirstLoad || change === 0) {
           return value;
         }
-        
+
         const arrow = change > 0 ? '↑' : '↓';
-        const color = change > 0 ? 'text-green-600' : 'text-red-600';
+        // For inverted metrics (Excess, Revenue Risk, LILF): up=red, down=green
+        // For normal metrics (FBM, Trends): up=green, down=red
+        let color;
+        if (invertColors) {
+          color = change > 0 ? 'text-red-600' : 'text-green-600';
+        } else {
+          color = change > 0 ? 'text-green-600' : 'text-red-600';
+        }
         const changeText = isRevenue ? Math.abs(change).toFixed(0) : Math.abs(change);
-        
+
         return `${value} <span class="${color} text-sm font-medium">${arrow}${changeText}</span>`;
       }
       
@@ -1121,23 +1129,23 @@
       // Excess inventory count (only count items with aged inventory 181+)
       var excessCount = dashboardData.excessInventory.items.filter(function(i) { return i.hasAgedInventory; }).length;
       document.getElementById('excessCount').innerHTML =
-        createChangeIndicator(excessCount, changes.excessChange || 0);
+        createChangeIndicator(excessCount, changes.excessChange || 0, false, true);
       
       // Revenue at risk total - show daily lost revenue
       const totalLostPerDay = dashboardData.revenueRisk.reduce(
         (sum, item) => sum + item.lostRevenuePerDay, 0
       );
       const revenueText = '$' + formatNumber(totalLostPerDay) + '/day';
-      document.getElementById('revenueRisk').innerHTML = 
-        createChangeIndicator(revenueText, changes.revenueRiskChange || 0, true);
+      document.getElementById('revenueRisk').innerHTML =
+        createChangeIndicator(revenueText, changes.revenueRiskChange || 0, true, true);
       
       // LILF groups count
       const lilfValue = dashboardData.lilfMonitor.length > 0 ? dashboardData.lilfMonitor.length : 'None';
       if (lilfValue === 'None') {
         document.getElementById('lilfCount').textContent = lilfValue;
       } else {
-        document.getElementById('lilfCount').innerHTML = 
-          createChangeIndicator(lilfValue, changes.lilfChange || 0);
+        document.getElementById('lilfCount').innerHTML =
+          createChangeIndicator(lilfValue, changes.lilfChange || 0, false, true);
       }
         
       // SKU Trends count
