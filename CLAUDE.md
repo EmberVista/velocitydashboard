@@ -271,7 +271,8 @@ data.allListings.forEach(listing => {
 
 **Revenue at Risk**: FBA SKUs (active+inactive) with Available Pipeline=0 AND T90 units>0. Priority = T90 revenue.
 
-**Days of Supply**: `(FBA fulfillable + inbound + AWD) / (T30 units / 30)`
+**Days of Supply**: `(FBA fulfillable + inbound-shipped + inbound-receiving + AWD) / (T30 units / 30)`
+- **EXCLUDES** `afn-inbound-working-quantity` (shipments created but not yet shipped to Amazon)
 
 **Ghost SKU**: SKU in T90 sales but NOT in FBA inventory report. Auto-cleanup after 60 days or reappearance.
 
@@ -408,6 +409,13 @@ testRevenueRiskFix();          // Revenue risk
 
 ### Inactive FBA Listings Fix
 **Change**: Process ALL FBA listings (active+inactive) + use health status column as secondary detection
+
+### v252 - Days of Supply Fix + Indicator Colors
+**Problem**: Days of Supply was inflated by counting `afn-inbound-working-quantity` (unshipped inventory still at seller's warehouse)
+**Fix**: Exclude inbound-working from calculation, only count shipped/receiving inventory
+**Also Fixed**: Dashboard indicator colors now correctly show:
+- **Excess Inventory, Revenue at Risk, LILF**: Red ↑ for increases (bad), Green ↓ for decreases (good)
+- **FBM to FBA, SKU Trends**: Green ↑ for increases, Red ↓ for decreases (normal)
 
 ---
 
